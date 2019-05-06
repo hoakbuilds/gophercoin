@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
 	"time"
@@ -12,16 +13,44 @@ import (
 // which will be hashed, the hash of the
 // previous block and the time of its creation
 type Block struct {
-	timestamp     int64
-	info          []byte
-	prevBlockHash []byte
-	hash          []byte
-	counter       int
+	Timestamp     int64
+	Data          []byte
+	PrevBlockHash []byte
+	Transactions  []*Transaction
+	Hash          []byte
+	Counter       int
 }
 
-// Serialize is used to encode the Block before
+// HashTransactions returns a hash of the transactions in the block
+func (b *Block) HashTransactions() []byte {
+	var txHashes [][]byte
+	var txHash [32]byte
+
+	for _, tx := range b.Transactions {
+		txHashes = append(txHashes, tx.ID)
+	}
+	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
+
+	return txHash[:]
+}
+
+// DeserializeBlock is used to decode the Block before
 // insertion in BoltDB
-func (b *Block) Serialize() ([]byte, error) {
+func DeserializeBlock(d []byte) (*Block, error) {
+	var block Block
+
+	decoder := gob.NewDecoder(bytes.NewReader(d))
+	err := decoder.Decode(&block)
+	if err != nil {
+		fmt.Printf("Error deserializing block")
+		return nil, err
+	}
+	return &block, nil
+}
+
+// SerializeBlock is used to encode the Block before
+// insertion in BoltDB
+func (b *Block) SerializeBlock() ([]byte, error) {
 	var result bytes.Buffer
 	encoder := gob.NewEncoder(&result)
 
@@ -34,14 +63,14 @@ func (b *Block) Serialize() ([]byte, error) {
 	return result.Bytes(), nil
 }
 
-//	func to create a new block
-func newBlock(prevBlockHash []byte, info string) *Block {
+// NewBlock is the func to create a new block
+func NewBlock(prevBlockHash []byte, info string) *Block {
 
 	b := &Block{time.Now().Unix(), []byte(info), prevBlockHash, []byte{}, 0}
-	pow := newProofOfWork(b)
+	pow := NewProofOfWork(b)
 	counter, hash := pow.run()
-	b.hash = hash[:]
-	b.counter = counter
+	b.Hash = hash[:]
+	b.Counter = counter
 
 	return b
 }
@@ -49,6 +78,5 @@ func newBlock(prevBlockHash []byte, info string) *Block {
 //	func that creates the Blockchain with
 //	the Genesis Block as its first block
 func genesisBlock() *Block {
-
-	return newBlock([]byte{}, "Genesis Block")
+	return NewBlock([]byte{}, "Genesis Block")
 }

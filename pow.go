@@ -23,9 +23,9 @@ func (pow *ProofOfWork) prepareData(counter int) []byte {
 
 	data := bytes.Join(
 		[][]byte{
-			pow.block.prevBlockHash,
-			pow.block.info,
-			IntToHex(pow.block.timestamp),
+			pow.block.PrevBlockHash,
+			pow.block.Data,
+			IntToHex(pow.block.Timestamp),
 			IntToHex(int64(targetBits)),
 			IntToHex(int64(counter)),
 		},
@@ -42,7 +42,7 @@ func (pow *ProofOfWork) run() (int, []byte) {
 	var hash [32]byte
 	counter := 0
 
-	fmt.Printf("Mining block containg \"%s\"\n", pow.block.info)
+	fmt.Printf("Mining block containg \"%s\"\n", pow.block.Data)
 
 	for counter < maxNonce {
 		data := pow.prepareData(counter)
@@ -61,13 +61,13 @@ func (pow *ProofOfWork) run() (int, []byte) {
 	return counter, hash[:]
 }
 
-// func that decides wheather the proof of worl
+// Validate is the func that decides whether the proof of work
 // is valid of not
-func (pow *ProofOfWork) validate() bool {
+func (pow *ProofOfWork) Validate() bool {
 
 	var hashInt big.Int
 
-	data := pow.prepareData(pow.block.counter)
+	data := pow.prepareData(pow.block.Counter)
 	hash := sha256.Sum256(data)
 	hashInt.SetBytes(hash[:])
 	isValid := hashInt.Cmp(pow.target) == -1
@@ -75,6 +75,7 @@ func (pow *ProofOfWork) validate() bool {
 	return isValid
 }
 
+// NewProofOfWork is the
 // func that creates a new ProofOfWork struct.
 // We use a big int because later we'll convert
 // a hash into a big int and compare if it's
@@ -83,7 +84,7 @@ func (pow *ProofOfWork) validate() bool {
 // is lower than the boundary it's valid.
 // Lowering the boundary makes if more
 // difficult to find a valid hash.
-func newProofOfWork(b *Block) *ProofOfWork {
+func NewProofOfWork(b *Block) *ProofOfWork {
 
 	target := big.NewInt(1)
 	target.Lsh(target, uint(256-targetBits))
