@@ -14,7 +14,6 @@ import (
 // previous block and the time of its creation
 type Block struct {
 	Timestamp     int64
-	Data          []byte
 	PrevBlockHash []byte
 	Transactions  []*Transaction
 	Hash          []byte
@@ -64,9 +63,16 @@ func (b *Block) SerializeBlock() ([]byte, error) {
 }
 
 // NewBlock is the func to create a new block
-func NewBlock(prevBlockHash []byte, info string) *Block {
+func NewBlock(prevBlockHash []byte, transactions []*Transaction) *Block {
 
-	b := &Block{time.Now().Unix(), []byte(info), prevBlockHash, []byte{}, 0}
+	//Initialize the block structure with the given data
+	b := &Block{
+		Timestamp:     time.Now().Unix(),
+		PrevBlockHash: prevBlockHash,
+		Transactions:  transactions,
+		Hash:          []byte{},
+		Counter:       0,
+	}
 	pow := NewProofOfWork(b)
 	counter, hash := pow.run()
 	b.Hash = hash[:]
@@ -77,6 +83,6 @@ func NewBlock(prevBlockHash []byte, info string) *Block {
 
 //	func that creates the Blockchain with
 //	the Genesis Block as its first block
-func genesisBlock() *Block {
-	return NewBlock([]byte{}, "Genesis Block")
+func genesisBlock(coinbasetx *Transaction) *Block {
+	return NewBlock([]byte{}, []*Transaction{coinbasetx})
 }

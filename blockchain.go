@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/boltdb/bolt"
 )
@@ -15,10 +17,20 @@ type Blockchain struct {
 	db  *bolt.DB
 }
 
-// AddBlock is the method used to add a block
-// to the blockchain. The string given with the
-// parameter data is used to be hashed in the block
-func (bc *Blockchain) AddBlock(data string) {
+// DBExists is used to check if the database
+// already exists locally or not
+func DBExists() bool {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
+}
+
+// MineBlock is the method used to mine a block
+// with the provided transactions. The parameter `transactions`
+// passed as a pointer to a slice of transactions
+func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
@@ -31,7 +43,7 @@ func (bc *Blockchain) AddBlock(data string) {
 		fmt.Printf("Error getting last block")
 	}
 
-	newBlock := NewBlock([]byte(data), string(lastHash))
+	newBlock := NewBlock([]byte(lastHash), transactions)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -185,12 +197,70 @@ Work:
 	return accumulated, unspentOutputs
 }
 
+// CreateBlockchain creates a new blockchain DB
+func CreateBlockchain(address string) *Blockchain {
+
+	if DBExists() {
+		fmt.Println("Blockchain already exists.")
+		os.Exit(1)
+	}
+
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
+		genesis := genesisBlock(cbtx)
+
+		b, err := tx.CreateBucket([]byte(blocksBucket))
+		if err != nil {
+			log.Panic(err)
+		}
+		ser, err := genesis.SerializeBlock()
+		if err != nil {
+			log.Panic(err)
+		}
+		err = b.Put(genesis.Hash, ser)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put([]byte("l"), genesis.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+		tip = genesis.Hash
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bc := Blockchain{
+		tip: tip,
+		db:  db,
+	}
+
+	return &bc
+}
+
 // NewBlockchain is used to open a db file,
 // check if a Blockchain already existed,
 // if so gets the current blockchain tip,
 // else generates the genesis block and
 // sets it as the tip
 func NewBlockchain(data []byte) *Blockchain {
+
+	if DBExists() == false {
+		fmt.Println("No existing blockchain found. Create one first.")
+		os.Exit(1)
+	}
+
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
@@ -199,24 +269,13 @@ func NewBlockchain(data []byte) *Blockchain {
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-
-		if b == nil {
-			genesis := genesisBlock()
-			b, err := tx.CreateBucket([]byte(blocksBucket))
-			serializedGenesis, err := genesis.SerializeBlock()
-			if err != nil {
-				fmt.Printf("Error serializing genesis block")
-				return nil
-			}
-			err = b.Put(genesis.Hash, serializedGenesis)
-			err = b.Put([]byte("l"), genesis.Hash)
-			tip = genesis.Hash
-		} else {
-			tip = b.Get([]byte("l"))
-		}
-
+		tip = b.Get([]byte("1"))
 		return nil
 	})
+
+	if err != nil {
+		log.Panic(err)
+	}
 
 	bc := Blockchain{
 		tip: tip,
