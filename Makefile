@@ -19,5 +19,6 @@ install:
 	$(GOINSTALL) $(PKG)
 
 clear:
-	rm
 	rm go.*
+	rm wallet*.dat
+	rm blockchain*.db
