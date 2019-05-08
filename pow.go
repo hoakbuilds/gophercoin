@@ -42,7 +42,7 @@ func (pow *ProofOfWork) run() (int, []byte) {
 	var hash [32]byte
 	counter := 0
 
-	fmt.Printf("Mining block containing \"%s\"\n", pow.block.Transactions)
+	fmt.Printf("Mining block containing \n\"%s\"\n", pow.block.Transactions)
 
 	for counter < maxNonce {
 		data := pow.prepareData(counter)
@@ -67,7 +67,7 @@ func (pow *ProofOfWork) Validate() bool {
 
 	var hashInt big.Int
 
-	data := pow.prepareData(pow.block.Counter)
+	data := pow.prepareData(pow.block.Nonce)
 	hash := sha256.Sum256(data)
 	hashInt.SetBytes(hash[:])
 	isValid := hashInt.Cmp(pow.target) == -1
