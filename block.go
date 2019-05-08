@@ -16,7 +16,8 @@ type Block struct {
 	PrevBlockHash []byte
 	Transactions  []*Transaction
 	Hash          []byte
-	Counter       int
+	Nonce         int
+	Height        int
 }
 
 // HashTransactions returns a hash of the transactions in the block
@@ -62,7 +63,8 @@ func (b *Block) SerializeBlock() ([]byte, error) {
 }
 
 // NewBlock is the func to create a new block
-func NewBlock(prevBlockHash []byte, transactions []*Transaction) *Block {
+func NewBlock(prevBlockHash []byte, transactions []*Transaction,
+	height int) *Block {
 
 	//Initialize the block structure with the given data
 	b := &Block{
@@ -70,12 +72,13 @@ func NewBlock(prevBlockHash []byte, transactions []*Transaction) *Block {
 		PrevBlockHash: prevBlockHash,
 		Transactions:  transactions,
 		Hash:          []byte{},
-		Counter:       0,
+		Nonce:         0,
+		Height:        height,
 	}
 	pow := NewProofOfWork(b)
-	counter, hash := pow.run()
+	nonce, hash := pow.run()
 	b.Hash = hash[:]
-	b.Counter = counter
+	b.Nonce = nonce
 
 	return b
 }
@@ -83,5 +86,5 @@ func NewBlock(prevBlockHash []byte, transactions []*Transaction) *Block {
 //	func that creates the Blockchain with
 //	the Genesis Block as its first block
 func genesisBlock(coinbasetx *Transaction) *Block {
-	return NewBlock([]byte{}, []*Transaction{coinbasetx})
+	return NewBlock([]byte{}, []*Transaction{coinbasetx}, 0)
 }
