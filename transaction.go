@@ -23,6 +23,19 @@ type Transaction struct {
 	Vout []TXOutput
 }
 
+// DeserializeTransaction deserializes a transaction
+func DeserializeTransaction(data []byte) Transaction {
+	var transaction Transaction
+
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&transaction)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return transaction
+}
+
 // IsCoinbase checks whether the transaction is coinbase
 func (tx Transaction) IsCoinbase() bool {
 	return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
@@ -64,18 +77,17 @@ func NewCoinbaseTX(to, data string) *Transaction {
 }
 
 // NewUTXOTransaction creates a new transaction
-func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transaction {
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TXInput
 	var outputs []TXOutput
 
-	wallets, err := NewWallets()
-	if err != nil {
-		log.Panic(err)
-	}
-	wallet := wallets.GetWallet(from)
+	fmt.Printf("newutxotransaction:\n")
 	pubKeyHash := HashPubKey(wallet.PublicKey)
-	acc, validOutputs := bc.FindSpendableOutputs(pubKeyHash, amount)
 
+	fmt.Printf("newutxotransaction: pubKeyHash%+v\n", pubKeyHash)
+	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
+
+	fmt.Printf("newutxotransaction: acc:%+v validOutputs:%+v\n", acc, validOutputs)
 	if acc < amount {
 		log.Panic("ERROR: Not enough funds")
 	}
@@ -94,14 +106,15 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	}
 
 	// Build a list of outputs
-	outputs = append(outputs, TXOutput{amount, to})
+	from := fmt.Sprintf("%s", wallet.GetAddress())
+	outputs = append(outputs, *NewTXOutput(amount, to))
 	if acc > amount {
-		outputs = append(outputs, *NewTXOutput(amount, to))
+		outputs = append(outputs, *NewTXOutput(acc-amount, from)) // a change
 	}
 
+	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
-	UTXOSet.Blockchain.SignTransaction(&tx, wallet.PrivateKey)
-	bc.SignTransaction(&tx, wallet.PrivateKey)
+	UTXOSet.chain.SignTransaction(&tx, wallet.PrivateKey)
 
 	return &tx
 }
@@ -154,21 +167,21 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transac
 func (tx Transaction) String() string {
 	var lines []string
 
-	lines = append(lines, fmt.Sprintf("--- Transaction %x:", tx.ID))
+	lines = append(lines, fmt.Sprintf("\n--- Transaction %x:", tx.ID))
 
 	for i, input := range tx.Vin {
 
-		lines = append(lines, fmt.Sprintf("		Input %d:", i))
-		lines = append(lines, fmt.Sprintf("		TXID:      %x", input.Txid))
-		lines = append(lines, fmt.Sprintf("		Out:       %d", input.Vout))
-		lines = append(lines, fmt.Sprintf("		Signature: %x", input.Signature))
-		lines = append(lines, fmt.Sprintf("		PubKey:    %x", input.PubKey))
+		lines = append(lines, fmt.Sprintf("	Input %d:", i))
+		lines = append(lines, fmt.Sprintf("	TXID:      %x", input.Txid))
+		lines = append(lines, fmt.Sprintf("	Out:       %d", input.Vout))
+		lines = append(lines, fmt.Sprintf("	Signature: %x", input.Signature))
+		lines = append(lines, fmt.Sprintf("	PubKey:    %x", input.PubKey))
 	}
 
 	for i, output := range tx.Vout {
-		lines = append(lines, fmt.Sprintf("		Output %d:", i))
-		lines = append(lines, fmt.Sprintf("		Value:  %d", output.Value))
-		lines = append(lines, fmt.Sprintf("		Script: %x", output.PubKeyHash))
+		lines = append(lines, fmt.Sprintf("	Output %d:", i))
+		lines = append(lines, fmt.Sprintf("	Value:  %d", output.Value))
+		lines = append(lines, fmt.Sprintf("	Script: %x", output.PubKeyHash))
 	}
 
 	return strings.Join(lines, "\n")

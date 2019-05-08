@@ -16,8 +16,3 @@ func (in *TXInput) UsesKey(pubKeyHash []byte) bool {
 
 	return bytes.Compare(lockingHash, pubKeyHash) == 0
 }
-
-// CanUnlockOutputWith checks whether the address initiated the transaction
-func (in *TXInput) CanUnlockOutputWith(unlockingData []byte) bool {
-	return bytes.Compare(in.PubKey, unlockingData) == 0
-}

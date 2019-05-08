@@ -32,9 +32,17 @@ func NewTXOutput(value int, address string) *TXOutput {
 	return txo
 }
 
-// CanBeUnlockedWith checks if the output can be unlocked with the provided data
-func (out *TXOutput) CanBeUnlockedWith(unlockingData []byte) bool {
-	return bytes.Compare(out.PubKeyHash, unlockingData) == 0
+// Serialize serializes TXOutputs
+func (out *TXOutput) Serialize() []byte {
+	var buff bytes.Buffer
+
+	enc := gob.NewEncoder(&buff)
+	err := enc.Encode(out)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return buff.Bytes()
 }
 
 // TXOutputs collects TXOutput

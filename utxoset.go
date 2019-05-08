@@ -48,7 +48,7 @@ func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[s
 func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 	var UTXOs []TXOutput
 	db := u.chain.db
-
+	log.Printf("find utxo: %v", pubKeyHash)
 	err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
 		c := b.Cursor()
@@ -56,6 +56,7 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			outs := DeserializeOutputs(v)
 
+			log.Printf("outputs: %v", outs)
 			for _, out := range outs.Outputs {
 				if out.IsLockedWithKey(pubKeyHash) {
 					UTXOs = append(UTXOs, out)
@@ -141,7 +142,6 @@ func (u UTXOSet) Reindex() {
 // The Block is considered to be the tip of a chain
 func (u UTXOSet) Update(block *Block) {
 	db := u.chain.db
-
 	err := db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
 
