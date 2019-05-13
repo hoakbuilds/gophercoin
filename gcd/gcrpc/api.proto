@@ -11,7 +11,11 @@ message GetBalanceResponse {
     int64 balance = 1 [json_name ="balance"];
 }
 
+<<<<<<< HEAD
 service GCD {
+=======
+service GophercoinDaemon {
+>>>>>>> d3233990347c6be6c9d1316dbc6bc74557aa1242
 
      /** gccli: `getbalance`
     GetBalance returns total unspent transaction outputs

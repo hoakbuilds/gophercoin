@@ -91,7 +91,7 @@ func sendAddr(address string) {
 	sendData(address, request)
 }
 
-func sendBlock(addr string, b *Block) {
+func sendBlock(addr string, b *db.Block) {
 	serBlock, err := b.SerializeBlock()
 	if err != nil {
 		log.Panicf("err: %v", err)
@@ -149,7 +149,7 @@ func sendGetData(address, kind string, id []byte) {
 	sendData(address, request)
 }
 
-func sendTx(addr string, tnx *Transaction) {
+func sendTx(addr string, tnx *db.Transaction) {
 	data := tx{nodeAddress, tnx.Serialize()}
 	payload := gobEncode(data)
 	request := append(commandToBytes("tx"), payload...)
@@ -157,7 +157,7 @@ func sendTx(addr string, tnx *Transaction) {
 	sendData(addr, request)
 }
 
-func sendVersion(addr string, bc *Blockchain) {
+func sendVersion(addr string, bc *db.Blockchain) {
 	bestHeight := bc.GetBestHeight()
 	fmt.Printf("best height: %d \n", bestHeight)
 	version := Version{nodeVersion, bestHeight, nodeAddress}

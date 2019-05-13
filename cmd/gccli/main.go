@@ -8,7 +8,11 @@ import (
 )
 
 const (
+<<<<<<< HEAD
 	defaultRPCHostPort = "7777"
+=======
+	defaultRPCHostPort = "10010"
+>>>>>>> d3233990347c6be6c9d1316dbc6bc74557aa1242
 )
 
 func fatal(err error) {
