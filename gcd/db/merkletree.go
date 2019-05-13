@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"crypto/sha256"

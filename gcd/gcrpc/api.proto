@@ -1,0 +1,22 @@
+syntax = "proto3"; 
+
+package gcrpc;
+
+message GetBalanceRequest {
+    string address = 1 [json_name ="address"];
+}
+
+message GetBalanceResponse {
+    // The balance of the wallet
+    int64 balance = 1 [json_name ="balance"];
+}
+
+service GophercoinDaemon {
+
+     /** gccli: `getbalance`
+    GetBalance returns total unspent transaction outputs
+    that are in control of the given wallet
+    */
+    rpc GetBalance (GetBalanceRequest) returns (GetBalanceResponse) {}
+}
+

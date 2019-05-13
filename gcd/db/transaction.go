@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 	"log"
 	"math/big"
 	"strings"
+
+	"github.com/gophercoin/wallet"
 )
 
 const subsidy = 10
@@ -77,7 +79,7 @@ func NewCoinbaseTX(to, data string) *Transaction {
 }
 
 // NewUTXOTransaction creates a new transaction
-func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(wallet *wallet.Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TXInput
 	var outputs []TXOutput
 
