@@ -1,4 +1,4 @@
-package main
+package gcd
 
 import (
 	"crypto/sha256"

@@ -1,4 +1,4 @@
-package main
+package gcd
 
 import (
 	"bytes"
@@ -10,16 +10,6 @@ import (
 	"log"
 	"net"
 )
-
-const protocol = "tcp"
-const nodeVersion = 1
-const commandLength = 12
-
-var nodeAddress string
-var miningAddress string
-var knownNodes = []string{"localhost:3000"}
-var blocksInTransit = [][]byte{}
-var mempool = make(map[string]Transaction)
 
 type addr struct {
 	AddrList []string
@@ -51,7 +41,7 @@ type tx struct {
 	Transaction []byte
 }
 
-//Version structure specifies the structure used
+// Version structure specifies the structure used
 // to represent the Version message passed between
 // nodes
 type Version struct {
@@ -335,6 +325,7 @@ func handleTx(request []byte, bc *Blockchain) {
 
 			for id := range mempool {
 				tx := mempool[id]
+				fmt.Printf("verifying transaction: %s\n", id)
 				if bc.VerifyTransaction(&tx) {
 					txs = append(txs, &tx)
 				}
@@ -432,32 +423,6 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	}
 
 	conn.Close()
-}
-
-// StartServer starts a node
-func StartServer(nodeID, minerAddress string) {
-	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
-	miningAddress = minerAddress
-	ln, err := net.Listen(protocol, nodeAddress)
-	if err != nil {
-		log.Panic(err)
-	}
-	defer ln.Close()
-
-	bc := NewBlockchain(nodeID)
-
-	if nodeAddress != knownNodes[0] {
-		fmt.Printf("sending version message to %s\n", knownNodes[0])
-		sendVersion(knownNodes[0], bc)
-	}
-
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Panic(err)
-		}
-		go handleConnection(conn, bc)
-	}
 }
 
 func gobEncode(data interface{}) []byte {

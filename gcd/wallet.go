@@ -1,4 +1,4 @@
-package main
+package gcd
 
 import (
 	"bytes"
@@ -13,27 +13,27 @@ import (
 
 const (
 	version            = byte(0x00)
-	walletBucket       = "wallet"
+	walletBucket       = "Account"
 	walletExtension    = ".dat"
 	addressChecksumLen = 4
 )
 
-// Wallet stores private and public keys
-type Wallet struct {
+// Account stores private and public keys
+type Account struct {
 	PrivateKey ecdsa.PrivateKey
 	PublicKey  []byte
 }
 
-// NewWallet creates and returns a Wallet
-func NewWallet() *Wallet {
+// NewAccount creates and returns a Account
+func NewAccount() *Account {
 	private, public := newKeyPair()
-	wallet := Wallet{private, public}
+	Account := Account{private, public}
 
-	return &wallet
+	return &Account
 }
 
-// GetAddress returns wallet address
-func (w Wallet) GetAddress() []byte {
+// GetAddress returns Account address
+func (w Account) GetAddress() []byte {
 	pubKeyHash := HashPubKey(w.PublicKey)
 
 	versionedPayload := append([]byte{version}, pubKeyHash...)

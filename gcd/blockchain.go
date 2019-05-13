@@ -1,4 +1,4 @@
-package main
+package gcd
 
 import (
 	"bytes"
@@ -391,8 +391,8 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 // if so gets the current blockchain tip,
 // else generates the genesis block and
 // sets it as the tip
-func NewBlockchain(nodeID string) *Blockchain {
-	dbFile := fmt.Sprintf("%s%s%s", blocksBucket, nodeID, bucketExtension)
+func NewBlockchain() *Blockchain {
+	dbFile := fmt.Sprintf("%s%s", blocksBucket, bucketExtension)
 	fmt.Printf("Checking if %s exists\n", dbFile)
 	if DBExists(dbFile) == false {
 		fmt.Println("No existing blockchain found. Create one first.")

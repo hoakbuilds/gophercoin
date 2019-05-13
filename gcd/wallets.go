@@ -1,4 +1,4 @@
-package main
+package gcd
 
 import (
 	"bytes"
@@ -12,22 +12,22 @@ import (
 
 // Wallets stores a collection of wallets
 type Wallets struct {
-	Wallets map[string]*Wallet
+	Wallets map[string]*Account
 }
 
 // NewWallets creates Wallets and fills it from a file if it exists
-func NewWallets(nodeID string) (*Wallets, error) {
+func NewWallets() (*Wallets, error) {
 	wallets := Wallets{}
-	wallets.Wallets = make(map[string]*Wallet)
+	wallets.Wallets = make(map[string]*Account)
 
-	err := wallets.LoadFromFile(nodeID)
+	err := wallets.LoadFromFile()
 
 	return &wallets, err
 }
 
-// CreateWallet adds a Wallet to Wallets
-func (ws *Wallets) CreateWallet() string {
-	wallet := NewWallet()
+// CreateAccount adds an Account to Wallets
+func (ws *Wallets) CreateAccount() string {
+	wallet := NewAccount()
 	address := fmt.Sprintf("%s", wallet.GetAddress())
 
 	ws.Wallets[address] = wallet
@@ -46,14 +46,14 @@ func (ws *Wallets) GetAddresses() []string {
 	return addresses
 }
 
-// GetWallet returns a Wallet by its address
-func (ws Wallets) GetWallet(address string) Wallet {
+// GetAccount returns an Account by its address
+func (ws Wallets) GetAccount(address string) Account {
 	return *ws.Wallets[address]
 }
 
 // LoadFromFile loads wallets from the file
-func (ws *Wallets) LoadFromFile(nodeID string) error {
-	walletFile := fmt.Sprintf("%s%s%s", walletBucket, nodeID, walletExtension)
+func (ws *Wallets) LoadFromFile() error {
+	walletFile := fmt.Sprintf("%s%s", walletBucket, walletExtension)
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
 		return err
 	}
