@@ -12,6 +12,10 @@ import (
 	"github.com/boltdb/bolt"
 )
 
+const (
+	noExistingBlockchainFound = "No existing blockchain found"
+)
+
 // Blockchain is an array of blocks.
 // Arrays in Go are ordered by default,
 // which helps with some minor issues
@@ -112,14 +116,14 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		blockData := b.Get(lastHash)
 		block, err := DeserializeBlock(blockData)
 		if err != nil {
-			fmt.Printf("Error deserializing blockchain tip")
+			log.Printf("Error deserializing blockchain tip")
 			return nil
 		}
 		lastHeight = block.Height
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("Error getting last block")
+		log.Printf("Error getting last block")
 	}
 
 	newBlock := NewBlock([]byte(lastHash), transactions, lastHeight+1)
@@ -128,17 +132,17 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		b := tx.Bucket([]byte(blocksBucket))
 		block, err := newBlock.SerializeBlock()
 		if err != nil {
-			fmt.Printf("Error serializing new block")
+			log.Printf("Error serializing new block")
 			return nil
 		}
 		err = b.Put(newBlock.Hash, block)
 		if err != nil {
-			fmt.Printf("Error updating bucket with new block")
+			log.Printf("Error updating bucket with new block")
 			return nil
 		}
 		err = b.Put([]byte("l"), newBlock.Hash)
 		if err != nil {
-			fmt.Printf("Error serializing genesis block")
+			log.Printf("Error serializing genesis block")
 			return nil
 		}
 		bc.tip = newBlock.Hash
@@ -218,7 +222,7 @@ func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey)
 	for _, vin := range tx.Vin {
 		prevTX, err := bc.FindTransaction(vin.Txid)
 		if err != nil {
-			fmt.Printf("Error finding for transaction")
+			log.Printf("Error finding for transaction")
 		}
 		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}
@@ -237,7 +241,7 @@ func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
 	for _, vin := range tx.Vin {
 		prevTX, err := bc.FindTransaction(vin.Txid)
 		if err != nil {
-			fmt.Printf("Error finding for transaction")
+			log.Printf("Error finding for transaction")
 		}
 		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}
@@ -271,14 +275,14 @@ func (i *BlockchainIterator) Next() *Block {
 		encodedBlock := b.Get(i.currentHash)
 		nblock, err := DeserializeBlock(encodedBlock)
 		if err != nil {
-			fmt.Printf("Error deserializing block")
+			log.Printf("Error deserializing block")
 			return nil
 		}
 		block = nblock
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("Error serializing new block")
+		log.Printf("Error serializing new block")
 
 	}
 
@@ -332,12 +336,12 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 }
 
 // CreateBlockchain creates a new blockchain DB
-func CreateBlockchain(address, nodeID string) *Blockchain {
-	dbFile := fmt.Sprintf("%s%s%s", blocksBucket, nodeID, bucketExtension)
+func CreateBlockchain(address string) *Blockchain {
+	dbFile := fmt.Sprintf("%s%s", blocksBucket, bucketExtension)
 
-	fmt.Printf("Checking if %s exists\n", dbFile)
+	log.Printf("[GCDB] Checking if %s exists\n", dbFile)
 	if DBExists(dbFile) {
-		fmt.Println("Blockchain already exists.")
+		log.Println("[GCDB] Blockchain already exists.")
 		os.Exit(1)
 	}
 
@@ -347,27 +351,27 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
-		log.Printf("err opening db: %+v\n", err)
+		log.Printf("[GCDB] err opening db: %+v\n", err)
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
 
 		b, err := tx.CreateBucket([]byte(blocksBucket))
 		if err != nil {
-			log.Printf("err creating blockchain bucket: %+v\n", err)
+			log.Printf("[GCDB] err creating blockchain bucket: %+v\n", err)
 		}
 		ser, err := genesis.SerializeBlock()
 		if err != nil {
-			log.Printf("err serializing genesis block: %+v\n", err)
+			log.Printf("[GCDB] err serializing genesis block: %+v\n", err)
 		}
 		err = b.Put(genesis.Hash, ser)
 		if err != nil {
-			log.Printf("err updating genesis hash: %+v\n", err)
+			log.Printf("[GCDB] err updating genesis hash: %+v\n", err)
 		}
 
 		err = b.Put([]byte("l"), genesis.Hash)
 		if err != nil {
-			log.Printf("err updating last block hash: %+v\n", err)
+			log.Printf("[GCDB] err updating last block hash: %+v\n", err)
 		}
 		tip = genesis.Hash
 
@@ -375,7 +379,7 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 	})
 
 	if err != nil {
-		log.Printf("err in blockchain creation db method: %+v\n", err)
+		log.Printf("[GCDB] err in blockchain creation db method: %+v\n", err)
 	}
 
 	bc := Blockchain{
@@ -391,18 +395,17 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 // if so gets the current blockchain tip,
 // else generates the genesis block and
 // sets it as the tip
-func NewBlockchain() *Blockchain {
+func NewBlockchain() (*Blockchain, error) {
 	dbFile := fmt.Sprintf("%s%s", blocksBucket, bucketExtension)
-	fmt.Printf("Checking if %s exists\n", dbFile)
+	log.Printf("[GCDB] Checking if %s exists\n", dbFile)
 	if DBExists(dbFile) == false {
-		fmt.Println("No existing blockchain found. Create one first.")
-		os.Exit(1)
+		return nil, fmt.Errorf(noExistingBlockchainFound)
 	}
 
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
-		log.Printf("err opening db: %+v\n", err)
+		log.Printf("[GCDB] err opening db: %+v\n", err)
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -419,5 +422,5 @@ func NewBlockchain() *Blockchain {
 		db:  db,
 	}
 
-	return &bc
+	return &bc, nil
 }

@@ -2,6 +2,14 @@ syntax = "proto3";
 
 package gcrpc;
 
+message NewAddressRequest{
+
+}
+
+message NewAddresResponse{
+    string address = 1 [json_name ="address"];
+}
+
 message GetBalanceRequest {
     string address = 1 [json_name ="address"];
 }
@@ -11,16 +19,17 @@ message GetBalanceResponse {
     int64 balance = 1 [json_name ="balance"];
 }
 
-<<<<<<< HEAD
 service GCD {
-=======
-service GophercoinDaemon {
->>>>>>> d3233990347c6be6c9d1316dbc6bc74557aa1242
 
      /** gccli: `getbalance`
     GetBalance returns total unspent transaction outputs
     that are in control of the given wallet
     */
     rpc GetBalance (GetBalanceRequest) returns (GetBalanceResponse) {}
+
+     /** gccli: `newaddress`
+    NewAddress returns a new address from the wallet
+    */
+    rpc NewAddress (NewAddressRequest) returns (NewAddresResponse) {}
 }
 

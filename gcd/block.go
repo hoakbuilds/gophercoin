@@ -3,7 +3,7 @@ package gcd
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -41,7 +41,7 @@ func DeserializeBlock(d []byte) (*Block, error) {
 	decoder := gob.NewDecoder(bytes.NewReader(d))
 	err := decoder.Decode(&block)
 	if err != nil {
-		fmt.Printf("Error deserializing block")
+		log.Printf("Error deserializing block")
 		return nil, err
 	}
 	return &block, nil
@@ -55,7 +55,7 @@ func (b *Block) SerializeBlock() ([]byte, error) {
 
 	err := encoder.Encode(b)
 	if err != nil {
-		fmt.Printf("Error serializing block")
+		log.Printf("Error serializing block")
 		return nil, err
 	}
 

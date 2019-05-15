@@ -10,49 +10,64 @@ import (
 	"os"
 )
 
-// Wallets stores a collection of wallets
-type Wallets struct {
-	Wallets map[string]*Account
+// Wallet stores a collection of Wallet
+type Wallet struct {
+	Wallet map[string]*Address
 }
 
-// NewWallets creates Wallets and fills it from a file if it exists
-func NewWallets() (*Wallets, error) {
-	wallets := Wallets{}
-	wallets.Wallets = make(map[string]*Account)
+// NewWallet creates Wallet and fills it from a file if it exists
+func NewWallet() (*Wallet, error) {
+	Wallet := Wallet{}
+	Wallet.Wallet = make(map[string]*Address)
 
-	err := wallets.LoadFromFile()
+	err := Wallet.LoadFromFile()
+	if os.IsNotExist(err) {
+		Wallet.SaveToFile()
+	}
 
-	return &wallets, err
+	return &Wallet, nil
 }
 
-// CreateAccount adds an Account to Wallets
-func (ws *Wallets) CreateAccount() string {
-	wallet := NewAccount()
+// CreateAddress adds an Address to Wallet
+func (ws *Wallet) CreateAddress() string {
+	wallet := NewAddress()
 	address := fmt.Sprintf("%s", wallet.GetAddress())
-
-	ws.Wallets[address] = wallet
+	log.Printf("[WLLT] New address created: %s", address)
+	ws.Wallet[address] = wallet
 
 	return address
 }
 
 // GetAddresses returns an array of addresses stored in the wallet file
-func (ws *Wallets) GetAddresses() []string {
+func (ws *Wallet) GetAddresses() []string {
 	var addresses []string
 
-	for address := range ws.Wallets {
+	for address := range ws.Wallet {
 		addresses = append(addresses, address)
 	}
 
 	return addresses
 }
 
-// GetAccount returns an Account by its address
-func (ws Wallets) GetAccount(address string) Account {
-	return *ws.Wallets[address]
+// GetInitialAddress returns the first address in the wallet
+func (ws *Wallet) GetInitialAddress() string {
+	var address string
+
+	for addr := range ws.Wallet {
+		address = addr
+		break
+	}
+
+	return address
 }
 
-// LoadFromFile loads wallets from the file
-func (ws *Wallets) LoadFromFile() error {
+// GetAddress returns an Address by its address
+func (ws Wallet) GetAddress(address string) Address {
+	return *ws.Wallet[address]
+}
+
+// LoadFromFile loads Wallet from the file
+func (ws *Wallet) LoadFromFile() error {
 	walletFile := fmt.Sprintf("%s%s", walletBucket, walletExtension)
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
 		return err
@@ -63,23 +78,23 @@ func (ws *Wallets) LoadFromFile() error {
 		log.Panic(err)
 	}
 
-	var wallets Wallets
+	var Wallet Wallet
 	gob.Register(elliptic.P256())
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
-	err = decoder.Decode(&wallets)
+	err = decoder.Decode(&Wallet)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	ws.Wallets = wallets.Wallets
+	ws.Wallet = Wallet.Wallet
 
 	return nil
 }
 
-// SaveToFile saves wallets to a file
-func (ws Wallets) SaveToFile(nodeID string) {
+// SaveToFile saves Wallet to a file
+func (ws Wallet) SaveToFile() {
 	var content bytes.Buffer
-	walletFile := fmt.Sprintf("%s%s%s", walletBucket, nodeID, walletExtension)
+	walletFile := fmt.Sprintf("%s%s", walletBucket, walletExtension)
 
 	gob.Register(elliptic.P256())
 

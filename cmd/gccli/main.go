@@ -1,22 +1,19 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/urfave/cli"
 )
 
 const (
-<<<<<<< HEAD
 	defaultRPCHostPort = "7777"
-=======
-	defaultRPCHostPort = "10010"
->>>>>>> d3233990347c6be6c9d1316dbc6bc74557aa1242
 )
 
 func fatal(err error) {
-	fmt.Fprintf(os.Stderr, "[gccli] %v\n", err)
+
+	log.Printf("[gccli] %v\n", err)
 	os.Exit(1)
 }
 
@@ -33,6 +30,7 @@ func main() {
 	}
 	app.Commands = []cli.Command{
 		getBalanceCommand,
+		newAddressCommand,
 	}
 	if err := app.Run(os.Args); err != nil {
 		fatal(err)

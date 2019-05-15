@@ -77,17 +77,17 @@ func NewCoinbaseTX(to, data string) *Transaction {
 }
 
 // NewUTXOTransaction creates a new transaction
-func NewUTXOTransaction(wallet *Account, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(wallet *Address, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TXInput
 	var outputs []TXOutput
 
-	fmt.Printf("newutxotransaction:\n")
+	log.Printf("newutxotransaction:\n")
 	pubKeyHash := HashPubKey(wallet.PublicKey)
 
-	fmt.Printf("newutxotransaction: pubKeyHash%+v\n", pubKeyHash)
+	log.Printf("newutxotransaction: pubKeyHash%+v\n", pubKeyHash)
 	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
 
-	fmt.Printf("newutxotransaction: acc:%+v validOutputs:%+v\n", acc, validOutputs)
+	log.Printf("newutxotransaction: acc:%+v validOutputs:%+v\n", acc, validOutputs)
 	if acc < amount {
 		log.Panic("ERROR: Not enough funds")
 	}

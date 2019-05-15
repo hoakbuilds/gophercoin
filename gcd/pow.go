@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"log"
 	"math/big"
 )
 
@@ -42,12 +43,11 @@ func (pow *ProofOfWork) run() (int, []byte) {
 	var hash [32]byte
 	counter := 0
 
-	fmt.Printf("Mining block containing \n\"%s\"\n", pow.block.Transactions)
+	log.Printf("[POW] Mining block containing \n\"%s\"\n", pow.block.Transactions)
 
 	for counter < maxNonce {
 		data := pow.prepareData(counter)
 		hash = sha256.Sum256(data)
-		fmt.Printf("\r%x", hash)
 		hashInt.SetBytes(hash[:])
 
 		if hashInt.Cmp(pow.target) == -1 {

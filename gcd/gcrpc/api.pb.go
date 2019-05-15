@@ -6,12 +6,11 @@ package gcrpc
 import (
 	context "context"
 	fmt "fmt"
-	math "math"
-
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -25,6 +24,76 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
+type NewAddressRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *NewAddressRequest) Reset()         { *m = NewAddressRequest{} }
+func (m *NewAddressRequest) String() string { return proto.CompactTextString(m) }
+func (*NewAddressRequest) ProtoMessage()    {}
+func (*NewAddressRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{0}
+}
+
+func (m *NewAddressRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_NewAddressRequest.Unmarshal(m, b)
+}
+func (m *NewAddressRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_NewAddressRequest.Marshal(b, m, deterministic)
+}
+func (m *NewAddressRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NewAddressRequest.Merge(m, src)
+}
+func (m *NewAddressRequest) XXX_Size() int {
+	return xxx_messageInfo_NewAddressRequest.Size(m)
+}
+func (m *NewAddressRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_NewAddressRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NewAddressRequest proto.InternalMessageInfo
+
+type NewAddresResponse struct {
+	Address              string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *NewAddresResponse) Reset()         { *m = NewAddresResponse{} }
+func (m *NewAddresResponse) String() string { return proto.CompactTextString(m) }
+func (*NewAddresResponse) ProtoMessage()    {}
+func (*NewAddresResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_00212fb1f9d3bf1c, []int{1}
+}
+
+func (m *NewAddresResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_NewAddresResponse.Unmarshal(m, b)
+}
+func (m *NewAddresResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_NewAddresResponse.Marshal(b, m, deterministic)
+}
+func (m *NewAddresResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NewAddresResponse.Merge(m, src)
+}
+func (m *NewAddresResponse) XXX_Size() int {
+	return xxx_messageInfo_NewAddresResponse.Size(m)
+}
+func (m *NewAddresResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_NewAddresResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NewAddresResponse proto.InternalMessageInfo
+
+func (m *NewAddresResponse) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
 type GetBalanceRequest struct {
 	Address              string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -36,7 +105,7 @@ func (m *GetBalanceRequest) Reset()         { *m = GetBalanceRequest{} }
 func (m *GetBalanceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetBalanceRequest) ProtoMessage()    {}
 func (*GetBalanceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{0}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{2}
 }
 
 func (m *GetBalanceRequest) XXX_Unmarshal(b []byte) error {
@@ -76,7 +145,7 @@ func (m *GetBalanceResponse) Reset()         { *m = GetBalanceResponse{} }
 func (m *GetBalanceResponse) String() string { return proto.CompactTextString(m) }
 func (*GetBalanceResponse) ProtoMessage()    {}
 func (*GetBalanceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{1}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{3}
 }
 
 func (m *GetBalanceResponse) XXX_Unmarshal(b []byte) error {
@@ -105,6 +174,8 @@ func (m *GetBalanceResponse) GetBalance() int64 {
 }
 
 func init() {
+	proto.RegisterType((*NewAddressRequest)(nil), "gcrpc.NewAddressRequest")
+	proto.RegisterType((*NewAddresResponse)(nil), "gcrpc.NewAddresResponse")
 	proto.RegisterType((*GetBalanceRequest)(nil), "gcrpc.GetBalanceRequest")
 	proto.RegisterType((*GetBalanceResponse)(nil), "gcrpc.GetBalanceResponse")
 }
@@ -112,16 +183,18 @@ func init() {
 func init() { proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c) }
 
 var fileDescriptor_00212fb1f9d3bf1c = []byte{
-	// 140 bytes of a gzipped FileDescriptorProto
+	// 175 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x4c, 0x2c, 0xc8, 0xd4,
-	0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x4d, 0x4f, 0x2e, 0x2a, 0x48, 0x56, 0xd2, 0xe5, 0x12,
-	0x74, 0x4f, 0x2d, 0x71, 0x4a, 0xcc, 0x49, 0xcc, 0x4b, 0x4e, 0x0d, 0x4a, 0x2d, 0x2c, 0x4d, 0x2d,
-	0x2e, 0x11, 0x92, 0xe0, 0x62, 0x4f, 0x4c, 0x49, 0x29, 0x4a, 0x2d, 0x2e, 0x96, 0x60, 0x54, 0x60,
-	0xd4, 0xe0, 0x0c, 0x82, 0x71, 0x95, 0xf4, 0xb8, 0x84, 0x90, 0x95, 0x17, 0x17, 0xe4, 0xe7, 0x15,
-	0xa7, 0x82, 0xd4, 0x27, 0x41, 0x84, 0xc0, 0xea, 0x99, 0x83, 0x60, 0x5c, 0x23, 0x2f, 0x2e, 0x66,
-	0x77, 0x67, 0x17, 0x21, 0x67, 0x2e, 0x2e, 0x84, 0x36, 0x21, 0x09, 0x3d, 0xb0, 0xdd, 0x7a, 0x18,
-	0x16, 0x4b, 0x49, 0x62, 0x91, 0x81, 0xd8, 0xa1, 0xc4, 0x90, 0xc4, 0x06, 0x76, 0xb8, 0x31, 0x20,
-	0x00, 0x00, 0xff, 0xff, 0x93, 0xaa, 0x90, 0xa2, 0xc5, 0x00, 0x00, 0x00,
+	0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x4d, 0x4f, 0x2e, 0x2a, 0x48, 0x56, 0x12, 0xe6, 0x12,
+	0xf4, 0x4b, 0x2d, 0x77, 0x4c, 0x49, 0x29, 0x4a, 0x2d, 0x2e, 0x0e, 0x4a, 0x2d, 0x2c, 0x4d, 0x2d,
+	0x2e, 0x51, 0xd2, 0x45, 0x12, 0x0c, 0x4a, 0x2d, 0x2e, 0xc8, 0xcf, 0x2b, 0x4e, 0x15, 0x92, 0xe0,
+	0x62, 0x4f, 0x84, 0x28, 0x93, 0x60, 0x54, 0x60, 0xd4, 0xe0, 0x0c, 0x82, 0x71, 0x41, 0xca, 0xdd,
+	0x53, 0x4b, 0x9c, 0x12, 0x73, 0x12, 0xf3, 0x92, 0x53, 0xa1, 0x66, 0xe0, 0x51, 0xae, 0xc7, 0x25,
+	0x84, 0xac, 0x1c, 0x61, 0x7c, 0x12, 0x44, 0x08, 0xac, 0x9e, 0x39, 0x08, 0xc6, 0x35, 0xea, 0x63,
+	0xe4, 0x62, 0x76, 0x77, 0x76, 0x11, 0x72, 0xe6, 0xe2, 0x42, 0xe8, 0x13, 0x92, 0xd0, 0x03, 0x7b,
+	0x40, 0x0f, 0xc3, 0x66, 0x29, 0x49, 0x2c, 0x32, 0x10, 0x4b, 0x94, 0x18, 0x84, 0x9c, 0xb8, 0xb8,
+	0x10, 0xfe, 0x85, 0x1b, 0x82, 0x11, 0x04, 0x52, 0x18, 0x32, 0x08, 0x33, 0x92, 0xd8, 0xc0, 0x21,
+	0x68, 0x0c, 0x08, 0x00, 0x00, 0xff, 0xff, 0x2f, 0x5a, 0x4f, 0x00, 0x4e, 0x01, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -140,6 +213,9 @@ type GCDClient interface {
 	//GetBalance returns total unspent transaction outputs
 	//that are in control of the given wallet
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error)
+	//* gccli: `newaddress`
+	//NewAddress returns a new address from the wallet
+	NewAddress(ctx context.Context, in *NewAddressRequest, opts ...grpc.CallOption) (*NewAddresResponse, error)
 }
 
 type gCDClient struct {
@@ -159,12 +235,24 @@ func (c *gCDClient) GetBalance(ctx context.Context, in *GetBalanceRequest, opts 
 	return out, nil
 }
 
+func (c *gCDClient) NewAddress(ctx context.Context, in *NewAddressRequest, opts ...grpc.CallOption) (*NewAddresResponse, error) {
+	out := new(NewAddresResponse)
+	err := c.cc.Invoke(ctx, "/gcrpc.GCD/NewAddress", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GCDServer is the server API for GCD service.
 type GCDServer interface {
 	//* gccli: `getbalance`
 	//GetBalance returns total unspent transaction outputs
 	//that are in control of the given wallet
 	GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error)
+	//* gccli: `newaddress`
+	//NewAddress returns a new address from the wallet
+	NewAddress(context.Context, *NewAddressRequest) (*NewAddresResponse, error)
 }
 
 // UnimplementedGCDServer can be embedded to have forward compatible implementations.
@@ -173,6 +261,9 @@ type UnimplementedGCDServer struct {
 
 func (*UnimplementedGCDServer) GetBalance(ctx context.Context, req *GetBalanceRequest) (*GetBalanceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBalance not implemented")
+}
+func (*UnimplementedGCDServer) NewAddress(ctx context.Context, req *NewAddressRequest) (*NewAddresResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NewAddress not implemented")
 }
 
 func RegisterGCDServer(s *grpc.Server, srv GCDServer) {
@@ -197,6 +288,24 @@ func _GCD_GetBalance_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GCD_NewAddress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NewAddressRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GCDServer).NewAddress(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gcrpc.GCD/NewAddress",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GCDServer).NewAddress(ctx, req.(*NewAddressRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _GCD_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gcrpc.GCD",
 	HandlerType: (*GCDServer)(nil),
@@ -204,6 +313,10 @@ var _GCD_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBalance",
 			Handler:    _GCD_GetBalance_Handler,
+		},
+		{
+			MethodName: "NewAddress",
+			Handler:    _GCD_NewAddress_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

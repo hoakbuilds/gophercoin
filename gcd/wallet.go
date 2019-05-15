@@ -18,22 +18,22 @@ const (
 	addressChecksumLen = 4
 )
 
-// Account stores private and public keys
-type Account struct {
+// Address stores private and public keys
+type Address struct {
 	PrivateKey ecdsa.PrivateKey
 	PublicKey  []byte
 }
 
-// NewAccount creates and returns a Account
-func NewAccount() *Account {
+// NewAddress creates and returns a Address
+func NewAddress() *Address {
 	private, public := newKeyPair()
-	Account := Account{private, public}
+	Address := Address{private, public}
 
-	return &Account
+	return &Address
 }
 
-// GetAddress returns Account address
-func (w Account) GetAddress() []byte {
+// GetAddress returns Address address
+func (w Address) GetAddress() []byte {
 	pubKeyHash := HashPubKey(w.PublicKey)
 
 	versionedPayload := append([]byte{version}, pubKeyHash...)
@@ -61,7 +61,7 @@ func HashPubKey(pubKey []byte) []byte {
 
 // ValidateAddress check if address if valid
 func ValidateAddress(address string) bool {
-	pubKeyHash := db.Base58Decode([]byte(address))
+	pubKeyHash := Base58Decode([]byte(address))
 	actualChecksum := pubKeyHash[len(pubKeyHash)-addressChecksumLen:]
 	Version := pubKeyHash[0]
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-addressChecksumLen]

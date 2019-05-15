@@ -11,6 +11,15 @@ import (
 	"net"
 )
 
+// Peer is the structure that defines a peer
+// in the peer to peer network
+type Peer struct {
+	// address defines the peer's IP address
+	address string
+	// version defines the peer's best block height
+	version int64
+}
+
 type addr struct {
 	AddrList []string
 }
@@ -76,46 +85,50 @@ func extractCommand(request []byte) []byte {
 	return request[:commandLength]
 }
 
-func requestBlocks() {
-	for _, node := range knownNodes {
-		sendGetBlocks(node)
+func (s *gcdServer) requestBlocks() {
+	for _, node := range s.knownNodes {
+		s.sendGetBlocks(node.address)
 	}
 }
 
-func sendAddr(address string) {
-	nodes := addr{knownNodes}
-	nodes.AddrList = append(nodes.AddrList, nodeAddress)
+func (s *gcdServer) sendAddr(address string) {
+	nodes := addr{}
+
+	for _, node := range s.knownNodes {
+		nodes.AddrList = append(nodes.AddrList, node.address)
+	}
+
 	payload := gobEncode(nodes)
 	request := append(commandToBytes("addr"), payload...)
 
-	sendData(address, request)
+	s.sendData(address, request)
 }
 
-func sendBlock(addr string, b *db.Block) {
+func (s *gcdServer) sendBlock(addr string, b *Block) {
 	serBlock, err := b.SerializeBlock()
 	if err != nil {
 		log.Panicf("err: %v", err)
 	}
-	data := block{nodeAddress, serBlock}
+	data := block{s.nodeAddress, serBlock}
 	payload := gobEncode(data)
 	request := append(commandToBytes("block"), payload...)
 
-	sendData(addr, request)
+	s.sendData(addr, request)
 }
 
-func sendData(addr string, data []byte) {
+func (s *gcdServer) sendData(addr string, data []byte) {
 	conn, err := net.Dial(protocol, addr)
 	if err != nil {
-		fmt.Printf("%s is not available\n", addr)
-		var updatedNodes []string
+		log.Printf("%s is not available\n", addr)
+		var updatedNodes []Peer
 
-		for _, node := range knownNodes {
-			if node != addr {
+		for _, node := range s.knownNodes {
+			if node.address != addr {
 				updatedNodes = append(updatedNodes, node)
 			}
 		}
 
-		knownNodes = updatedNodes
+		s.knownNodes = updatedNodes
 
 		return
 	}
@@ -127,48 +140,48 @@ func sendData(addr string, data []byte) {
 	}
 }
 
-func sendInv(address, kind string, items [][]byte) {
-	inventory := inv{nodeAddress, kind, items}
+func (s *gcdServer) sendInv(address, kind string, items [][]byte) {
+	inventory := inv{s.nodeAddress, kind, items}
 	payload := gobEncode(inventory)
 	request := append(commandToBytes("inv"), payload...)
 
-	sendData(address, request)
+	s.sendData(address, request)
 }
 
-func sendGetBlocks(address string) {
-	payload := gobEncode(getblocks{nodeAddress})
+func (s *gcdServer) sendGetBlocks(address string) {
+	payload := gobEncode(getblocks{s.nodeAddress})
 	request := append(commandToBytes("getblocks"), payload...)
 
-	sendData(address, request)
+	s.sendData(address, request)
 }
 
-func sendGetData(address, kind string, id []byte) {
-	payload := gobEncode(getdata{nodeAddress, kind, id})
+func (s *gcdServer) sendGetData(address, kind string, id []byte) {
+	payload := gobEncode(getdata{s.nodeAddress, kind, id})
 	request := append(commandToBytes("getdata"), payload...)
 
-	sendData(address, request)
+	s.sendData(address, request)
 }
 
-func sendTx(addr string, tnx *db.Transaction) {
-	data := tx{nodeAddress, tnx.Serialize()}
+func (s *gcdServer) sendTx(addr string, tnx *Transaction) {
+	data := tx{s.nodeAddress, tnx.Serialize()}
 	payload := gobEncode(data)
 	request := append(commandToBytes("tx"), payload...)
 
-	sendData(addr, request)
+	s.sendData(addr, request)
 }
 
-func sendVersion(addr string, bc *db.Blockchain) {
+func (s *gcdServer) sendVersion(addr string, bc *Blockchain) {
 	bestHeight := bc.GetBestHeight()
-	fmt.Printf("best height: %d \n", bestHeight)
-	version := Version{nodeVersion, bestHeight, nodeAddress}
+	log.Printf("best height: %d \n", bestHeight)
+	version := Version{nodeVersion, bestHeight, s.nodeAddress}
 	payload := gobEncode(version)
-	fmt.Printf("sending payload: %+v\n", bytesToCommand(payload))
+	log.Printf("sending payload: %+v\n", bytesToCommand(payload))
 	request := append(commandToBytes("version"), payload...)
 
-	sendData(addr, request)
+	s.sendData(addr, request)
 }
 
-func handleAddr(request []byte) {
+func (s *gcdServer) handleAddr(request []byte) {
 	var buff bytes.Buffer
 	var payload addr
 
@@ -178,13 +191,26 @@ func handleAddr(request []byte) {
 	if err != nil {
 		log.Panic(err)
 	}
+	var updatedNodes []Peer
+	updatedNodes = s.knownNodes
+	for _, node := range s.knownNodes {
 
-	knownNodes = append(knownNodes, payload.AddrList...)
-	fmt.Printf("There are %d known nodes now!\n", len(knownNodes))
-	requestBlocks()
+		for _, addr := range payload.AddrList {
+			if node.address != addr {
+				updatedNodes = append(updatedNodes, node)
+			}
+		}
+
+		s.knownNodes = updatedNodes
+	}
+
+	s.knownNodes = updatedNodes
+	log.Printf("There are %d known nodes now!\n", len(s.knownNodes))
+
+	s.requestBlocks()
 }
 
-func handleBlock(request []byte, bc *Blockchain) {
+func (s *gcdServer) handleBlock(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload block
 
@@ -203,20 +229,20 @@ func handleBlock(request []byte, bc *Blockchain) {
 	fmt.Println("Recevied a new block!")
 	bc.AddBlock(block)
 
-	fmt.Printf("Added block %x\n", block.Hash)
+	log.Printf("Added block %x\n", block.Hash)
 
-	if len(blocksInTransit) > 0 {
-		blockHash := blocksInTransit[0]
-		sendGetData(payload.AddrFrom, "block", blockHash)
+	if len(s.blocksInTransit) > 0 {
+		blockHash := s.blocksInTransit[0]
+		s.sendGetData(payload.AddrFrom, "block", blockHash)
 
-		blocksInTransit = blocksInTransit[1:]
+		s.blocksInTransit = s.blocksInTransit[1:]
 	} else {
 		UTXOSet := UTXOSet{bc}
 		UTXOSet.Reindex()
 	}
 }
 
-func handleInv(request []byte, bc *Blockchain) {
+func (s *gcdServer) handleInv(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload inv
 
@@ -227,13 +253,13 @@ func handleInv(request []byte, bc *Blockchain) {
 		log.Panic(err)
 	}
 
-	fmt.Printf("Recevied inventory with %d %s\n", len(payload.Items), payload.Type)
+	log.Printf("Recevied inventory with %d %s\n", len(payload.Items), payload.Type)
 
 	if payload.Type == "block" {
-		blocksInTransit = payload.Items
+		blocksInTransit := payload.Items
 
 		blockHash := payload.Items[0]
-		sendGetData(payload.AddrFrom, "block", blockHash)
+		s.sendGetData(payload.AddrFrom, "block", blockHash)
 
 		newInTransit := [][]byte{}
 		for _, b := range blocksInTransit {
@@ -241,19 +267,19 @@ func handleInv(request []byte, bc *Blockchain) {
 				newInTransit = append(newInTransit, b)
 			}
 		}
-		blocksInTransit = newInTransit
+		s.blocksInTransit = newInTransit
 	}
 
 	if payload.Type == "tx" {
 		txID := payload.Items[0]
 
-		if mempool[hex.EncodeToString(txID)].ID == nil {
-			sendGetData(payload.AddrFrom, "tx", txID)
+		if s.memPool[hex.EncodeToString(txID)].ID == nil {
+			s.sendGetData(payload.AddrFrom, "tx", txID)
 		}
 	}
 }
 
-func handleGetBlocks(request []byte, bc *Blockchain) {
+func (s *gcdServer) handleGetBlocks(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getblocks
 
@@ -265,10 +291,10 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 	}
 
 	blocks := bc.GetBlockHashes()
-	sendInv(payload.AddrFrom, "block", blocks)
+	s.sendInv(payload.AddrFrom, "block", blocks)
 }
 
-func handleGetData(request []byte, bc *Blockchain) {
+func (s *gcdServer) handleGetData(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getdata
 
@@ -285,19 +311,19 @@ func handleGetData(request []byte, bc *Blockchain) {
 			return
 		}
 
-		sendBlock(payload.AddrFrom, &block)
+		s.sendBlock(payload.AddrFrom, &block)
 	}
 
 	if payload.Type == "tx" {
 		txID := hex.EncodeToString(payload.ID)
-		tx := mempool[txID]
+		tx := s.memPool[txID]
 
-		sendTx(payload.AddrFrom, &tx)
-		// delete(mempool, txID)
+		s.sendTx(payload.AddrFrom, &tx)
+		// delete(memPool, txID)
 	}
 }
 
-func handleTx(request []byte, bc *Blockchain) {
+func (s *gcdServer) handleTx(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload tx
 
@@ -310,22 +336,22 @@ func handleTx(request []byte, bc *Blockchain) {
 
 	txData := payload.Transaction
 	tx := DeserializeTransaction(txData)
-	mempool[hex.EncodeToString(tx.ID)] = tx
+	s.memPool[hex.EncodeToString(tx.ID)] = tx
 
-	if nodeAddress == knownNodes[0] {
-		for _, node := range knownNodes {
-			if node != nodeAddress && node != payload.AddFrom {
-				sendInv(node, "tx", [][]byte{tx.ID})
+	if s.nodeAddress == s.knownNodes[0].address {
+		for _, node := range s.knownNodes {
+			if node.address != s.nodeAddress && node.address != payload.AddFrom {
+				s.sendInv(node.address, "tx", [][]byte{tx.ID})
 			}
 		}
 	} else {
-		if len(mempool) >= 2 && len(miningAddress) > 0 {
+		if len(s.memPool) >= 2 && len(s.miningAddress) > 0 {
 		MineTransactions:
 			var txs []*Transaction
 
-			for id := range mempool {
-				tx := mempool[id]
-				fmt.Printf("verifying transaction: %s\n", id)
+			for id := range s.memPool {
+				tx := s.memPool[id]
+				log.Printf("verifying transaction: %s\n", id)
 				if bc.VerifyTransaction(&tx) {
 					txs = append(txs, &tx)
 				}
@@ -336,7 +362,7 @@ func handleTx(request []byte, bc *Blockchain) {
 				return
 			}
 
-			cbTx := NewCoinbaseTX(miningAddress, "")
+			cbTx := NewCoinbaseTX(s.miningAddress, "")
 			txs = append(txs, cbTx)
 
 			newBlock := bc.MineBlock(txs)
@@ -347,23 +373,23 @@ func handleTx(request []byte, bc *Blockchain) {
 
 			for _, tx := range txs {
 				txID := hex.EncodeToString(tx.ID)
-				delete(mempool, txID)
+				delete(s.memPool, txID)
 			}
 
-			for _, node := range knownNodes {
-				if node != nodeAddress {
-					sendInv(node, "block", [][]byte{newBlock.Hash})
+			for _, node := range s.knownNodes {
+				if node.address != s.nodeAddress {
+					s.sendInv(node.address, "block", [][]byte{newBlock.Hash})
 				}
 			}
 
-			if len(mempool) > 0 {
+			if len(s.memPool) > 0 {
 				goto MineTransactions
 			}
 		}
 	}
 }
 
-func handleVersion(request []byte, bc *Blockchain) {
+func (s *gcdServer) handleVersion(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload Version
 
@@ -377,52 +403,54 @@ func handleVersion(request []byte, bc *Blockchain) {
 	myBestHeight := bc.GetBestHeight()
 	foreignerBestHeight := payload.BestHeight
 
-	fmt.Printf("best height: %d \tpeer %s best height: %d\n", myBestHeight, payload.AddrFrom, foreignerBestHeight)
+	log.Printf("best height: %d \tpeer %s best height: %d\n", myBestHeight, payload.AddrFrom, foreignerBestHeight)
 	if myBestHeight < foreignerBestHeight {
 
-		fmt.Printf("sending getblocks message to %s\n", knownNodes[0])
-		sendGetBlocks(payload.AddrFrom)
+		log.Printf("sending getblocks message to %s\n", s.knownNodes[0])
+		s.sendGetBlocks(payload.AddrFrom)
 	} else if myBestHeight > foreignerBestHeight {
 
-		fmt.Printf("sending version message to %s\n", knownNodes[0])
-		sendVersion(payload.AddrFrom, bc)
+		log.Printf("sending version message to %s\n", s.knownNodes[0])
+		s.sendVersion(payload.AddrFrom, bc)
 	}
 
 	// sendAddr(payload.AddrFrom)
-	if !nodeIsKnown(payload.AddrFrom) {
-		fmt.Printf("node %s is unknown, adding to peer list\n", payload.AddrFrom)
-		knownNodes = append(knownNodes, payload.AddrFrom)
+	if !s.nodeIsKnown(payload.AddrFrom) {
+		log.Printf("node %s is unknown, adding to peer list\n", payload.AddrFrom)
+		s.knownNodes = append(s.knownNodes, Peer{address: payload.AddrFrom})
 	}
 }
 
-func handleConnection(conn net.Conn, bc *Blockchain) {
+func (s *gcdServer) handleConnection(conn net.Conn, bc *Blockchain) {
 	request, err := ioutil.ReadAll(conn)
 	if err != nil {
 		log.Panic(err)
 	}
 	command := bytesToCommand(request[:commandLength])
-	fmt.Printf("Received %s command\n", command)
+	log.Printf("Received %s command\n", command)
 
 	switch command {
 	case "addr":
-		handleAddr(request)
+		s.handleAddr(request)
 	case "block":
-		handleBlock(request, bc)
+		s.handleBlock(request, bc)
 	case "inv":
-		handleInv(request, bc)
+		s.handleInv(request, bc)
 	case "getblocks":
-		handleGetBlocks(request, bc)
+		s.handleGetBlocks(request, bc)
 	case "getdata":
-		handleGetData(request, bc)
+		s.handleGetData(request, bc)
 	case "tx":
-		handleTx(request, bc)
+		s.handleTx(request, bc)
 	case "version":
-		handleVersion(request, bc)
+		s.handleVersion(request, bc)
 	default:
 		fmt.Println("Unknown command!")
 	}
 
 	conn.Close()
+
+	s.wg.Done()
 }
 
 func gobEncode(data interface{}) []byte {
@@ -437,9 +465,9 @@ func gobEncode(data interface{}) []byte {
 	return buff.Bytes()
 }
 
-func nodeIsKnown(addr string) bool {
-	for _, node := range knownNodes {
-		if node == addr {
+func (s *gcdServer) nodeIsKnown(addr string) bool {
+	for _, node := range s.knownNodes {
+		if node.address == addr {
 			return true
 		}
 	}
