@@ -85,13 +85,13 @@ func extractCommand(request []byte) []byte {
 	return request[:commandLength]
 }
 
-func (s *gcdServer) requestBlocks() {
+func (s *GcdServer) requestBlocks() {
 	for _, node := range s.knownNodes {
 		s.sendGetBlocks(node.address)
 	}
 }
 
-func (s *gcdServer) sendAddr(address string) {
+func (s *GcdServer) sendAddr(address string) {
 	nodes := addr{}
 
 	for _, node := range s.knownNodes {
@@ -104,7 +104,7 @@ func (s *gcdServer) sendAddr(address string) {
 	s.sendData(address, request)
 }
 
-func (s *gcdServer) sendBlock(addr string, b *Block) {
+func (s *GcdServer) sendBlock(addr string, b *Block) {
 	serBlock, err := b.SerializeBlock()
 	if err != nil {
 		log.Panicf("err: %v", err)
@@ -116,7 +116,7 @@ func (s *gcdServer) sendBlock(addr string, b *Block) {
 	s.sendData(addr, request)
 }
 
-func (s *gcdServer) sendData(addr string, data []byte) {
+func (s *GcdServer) sendData(addr string, data []byte) {
 	conn, err := net.Dial(protocol, addr)
 	if err != nil {
 		log.Printf("%s is not available\n", addr)
@@ -140,7 +140,7 @@ func (s *gcdServer) sendData(addr string, data []byte) {
 	}
 }
 
-func (s *gcdServer) sendInv(address, kind string, items [][]byte) {
+func (s *GcdServer) sendInv(address, kind string, items [][]byte) {
 	inventory := inv{s.nodeAddress, kind, items}
 	payload := gobEncode(inventory)
 	request := append(commandToBytes("inv"), payload...)
@@ -148,21 +148,21 @@ func (s *gcdServer) sendInv(address, kind string, items [][]byte) {
 	s.sendData(address, request)
 }
 
-func (s *gcdServer) sendGetBlocks(address string) {
+func (s *GcdServer) sendGetBlocks(address string) {
 	payload := gobEncode(getblocks{s.nodeAddress})
 	request := append(commandToBytes("getblocks"), payload...)
 
 	s.sendData(address, request)
 }
 
-func (s *gcdServer) sendGetData(address, kind string, id []byte) {
+func (s *GcdServer) sendGetData(address, kind string, id []byte) {
 	payload := gobEncode(getdata{s.nodeAddress, kind, id})
 	request := append(commandToBytes("getdata"), payload...)
 
 	s.sendData(address, request)
 }
 
-func (s *gcdServer) sendTx(addr string, tnx *Transaction) {
+func (s *GcdServer) sendTx(addr string, tnx *Transaction) {
 	data := tx{s.nodeAddress, tnx.Serialize()}
 	payload := gobEncode(data)
 	request := append(commandToBytes("tx"), payload...)
@@ -170,7 +170,7 @@ func (s *gcdServer) sendTx(addr string, tnx *Transaction) {
 	s.sendData(addr, request)
 }
 
-func (s *gcdServer) sendVersion(addr string, bc *Blockchain) {
+func (s *GcdServer) sendVersion(addr string, bc *Blockchain) {
 	bestHeight := bc.GetBestHeight()
 	log.Printf("best height: %d \n", bestHeight)
 	version := Version{nodeVersion, bestHeight, s.nodeAddress}
@@ -181,7 +181,7 @@ func (s *gcdServer) sendVersion(addr string, bc *Blockchain) {
 	s.sendData(addr, request)
 }
 
-func (s *gcdServer) handleAddr(request []byte) {
+func (s *GcdServer) handleAddr(request []byte) {
 	var buff bytes.Buffer
 	var payload addr
 
@@ -210,7 +210,7 @@ func (s *gcdServer) handleAddr(request []byte) {
 	s.requestBlocks()
 }
 
-func (s *gcdServer) handleBlock(request []byte, bc *Blockchain) {
+func (s *GcdServer) handleBlock(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload block
 
@@ -242,7 +242,7 @@ func (s *gcdServer) handleBlock(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *gcdServer) handleInv(request []byte, bc *Blockchain) {
+func (s *GcdServer) handleInv(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload inv
 
@@ -279,7 +279,7 @@ func (s *gcdServer) handleInv(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *gcdServer) handleGetBlocks(request []byte, bc *Blockchain) {
+func (s *GcdServer) handleGetBlocks(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getblocks
 
@@ -294,7 +294,7 @@ func (s *gcdServer) handleGetBlocks(request []byte, bc *Blockchain) {
 	s.sendInv(payload.AddrFrom, "block", blocks)
 }
 
-func (s *gcdServer) handleGetData(request []byte, bc *Blockchain) {
+func (s *GcdServer) handleGetData(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getdata
 
@@ -323,7 +323,7 @@ func (s *gcdServer) handleGetData(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *gcdServer) handleTx(request []byte, bc *Blockchain) {
+func (s *GcdServer) handleTx(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload tx
 
@@ -389,7 +389,7 @@ func (s *gcdServer) handleTx(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *gcdServer) handleVersion(request []byte, bc *Blockchain) {
+func (s *GcdServer) handleVersion(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload Version
 
@@ -421,7 +421,7 @@ func (s *gcdServer) handleVersion(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *gcdServer) handleConnection(conn net.Conn, bc *Blockchain) {
+func (s *GcdServer) handleConnection(conn net.Conn, bc *Blockchain) {
 	request, err := ioutil.ReadAll(conn)
 	if err != nil {
 		log.Panic(err)
@@ -465,7 +465,7 @@ func gobEncode(data interface{}) []byte {
 	return buff.Bytes()
 }
 
-func (s *gcdServer) nodeIsKnown(addr string) bool {
+func (s *GcdServer) nodeIsKnown(addr string) bool {
 	for _, node := range s.knownNodes {
 		if node.address == addr {
 			return true

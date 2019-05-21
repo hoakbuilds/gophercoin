@@ -8,8 +8,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/murlokito/gophercoin/gcd/gcrpc"
-	"google.golang.org/grpc"
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -21,25 +20,13 @@ const (
 	commandLength       = 12
 )
 
-// GrpcServer is the structure that defines the server
-// that is used to host the gRPC server
-type GrpcServer struct {
-	grpcChan chan string
-
-	wg *sync.WaitGroup
-}
-
-// RestServer is the structure that defines the server
-// that is used to host the REST API reverse-proxy
-type RestServer struct {
-}
-
-type gcdServer struct {
-	db        *Blockchain
-	wallet    *Wallet
-	utxoSet   *UTXOSet
-	rpcServer *GrpcServer
-
+// GcdServer is the structure which defines the Gophercoin
+// Daemon
+type GcdServer struct {
+	db              *Blockchain
+	wallet          *Wallet
+	utxoSet         *UTXOSet
+	Router          *mux.Router
 	knownNodes      []Peer
 	nodeAddress     string
 	blocksInTransit [][]byte
@@ -49,35 +36,8 @@ type gcdServer struct {
 	wg *sync.WaitGroup
 }
 
-// StartGRPCServer is the mehod used by the gRPC Server
-// to start it's lifecycle
-func (s *GrpcServer) StartGRPCServer(w *Wallet) {
-	// create a listener on TCP port
-	lis, err := net.Listen(protocol, "127.0.0.1:"+defaultRPCHostPort)
-	if err != nil {
-		log.Printf("failed to listen: %v", err)
-	}
-	log.Printf("[GRPC] Listening on port %s", defaultRPCHostPort)
-
-	// create a server instance
-	gcServer := gcrpc.Server{}
-
-	// create a gRPC server object
-	grpcServer := grpc.NewServer()
-
-	// attach the Ping service to the server
-	gcrpc.RegisterGCDServer(grpcServer, &gcServer)
-
-	// start the server
-	log.Printf("[GRPC] Starting HTTP/2 gRPC server on %s", defaultRPCHostPort)
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Printf("failed to serve: %s", err)
-	}
-	s.wg.Done()
-}
-
 // StartServer is the function used to start the gcd Server
-func (s *gcdServer) StartServer() {
+func (s *GcdServer) StartServer() {
 	// create a listener on TCP port
 	lis, err := net.Listen(protocol, "127.0.0.1:"+defaultProtocolPort)
 	if err != nil {

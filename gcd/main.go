@@ -1,7 +1,6 @@
 package gcd
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -14,48 +13,11 @@ import (
 // optional serverChan parameter is mainly used by the service code to be
 // notified with the server once it is setup so it can gracefully stop it when
 // requested from the service control manager.
-func gcdMain(serverChan chan<- *gcdServer) error {
+func gcdMain(serverChan chan<- *GcdServer) error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
 
 	var sync sync.WaitGroup
-
-	w, err := NewWallet()
-	if err != nil {
-		return fmt.Errorf("Failed to create new Wallet: %+v", err)
-	}
-
-	grpcChan := make(chan string)
-	s := &GrpcServer{
-		grpcChan: grpcChan,
-		wg:       &sync,
-	}
-
-	go s.StartGRPCServer(w)
-	sync.Add(1)
-
-	db, err := NewBlockchain()
-	if err != nil {
-		log.Printf("[GCD] %v", err)
-	}
-
-	var address string
-
-	if len(w.Wallet) > 0 {
-		log.Printf("[GCD] Wallet with %d address(es) found", len(w.Wallet))
-		address = w.GetInitialAddress()
-	} else {
-		address = w.CreateAddress()
-		w.SaveToFile()
-	}
-
-	if err != nil && err.Error() == noExistingBlockchainFound {
-		db = CreateBlockchain(address)
-	}
-
-	utxoset := &UTXOSet{
-		chain: db,
-	}
 
 	externalAddress := getExternalAddress()
 
@@ -65,11 +27,7 @@ func gcdMain(serverChan chan<- *gcdServer) error {
 		log.Printf("[GCD] External address: %s", externalAddress)
 	}
 
-	gcd := &gcdServer{
-		db:              db,
-		wallet:          w,
-		utxoSet:         utxoset,
-		rpcServer:       s,
+	gcd := &GcdServer{
 		knownNodes:      []Peer{},
 		nodeAddress:     externalAddress + ":" + string(defaultProtocolPort),
 		blocksInTransit: [][]byte{},
@@ -85,21 +43,18 @@ func gcdMain(serverChan chan<- *gcdServer) error {
 		os.Exit(1)
 	}()
 
+	go gcd.BuildAndServeAPI()
+	sync.Add(1)
 	go gcd.StartServer()
 	sync.Add(1)
 
 	if serverChan != nil {
 		serverChan <- gcd
 	}
-	select {
-	case <-grpcChan:
+	// Enter an infinite select, the daemon is still stoppable
+	// due to the goroutine checking for a sigterm
+	select {}
 
-	}
-	// Wait until the interrupt signal is received from an OS signal or
-	// shutdown is requested through one of the subsystems such as the RPC
-	// server.
-	//<-interrupt
-	return nil
 }
 
 // Main is the entrypoint for the Gophercoin Daemon
