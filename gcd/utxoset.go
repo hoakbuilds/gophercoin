@@ -46,9 +46,10 @@ func (u *UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[
 
 // FindUTXO finds UTXO for a public key hash
 func (u *UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
-	var UTXOs []TXOutput
 	db := u.chain.db
-	log.Printf("find utxo: %v", pubKeyHash)
+	var UTXOs []TXOutput
+
+	log.Printf("Find UTXOs for PKH: %v", pubKeyHash)
 	err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
 		c := b.Cursor()

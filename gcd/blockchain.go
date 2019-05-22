@@ -336,13 +336,13 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 }
 
 // CreateBlockchain creates a new blockchain DB
-func CreateBlockchain(address string) (*Blockchain, error) {
+func CreateBlockchain(address string) (Blockchain, error) {
 	dbFile := fmt.Sprintf("%s%s", blocksBucket, bucketExtension)
 
 	log.Printf("[GCDB] Checking if %s exists\n", dbFile)
 	if DBExists(dbFile) {
 		log.Println("[GCDB] Blockchain already exists.")
-		return nil, fmt.Errorf("Blockchain already exists")
+		return Blockchain{}, fmt.Errorf("Blockchain already exists")
 	}
 
 	var tip []byte
@@ -352,7 +352,7 @@ func CreateBlockchain(address string) (*Blockchain, error) {
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		log.Printf("[GCDB] err opening db: %+v\n", err)
-		return nil, err
+		return Blockchain{}, err
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -381,7 +381,7 @@ func CreateBlockchain(address string) (*Blockchain, error) {
 
 	if err != nil {
 		log.Printf("[GCDB] err in blockchain creation db method: %+v\n", err)
-		return nil, err
+		return Blockchain{}, err
 	}
 
 	bc := Blockchain{
@@ -389,7 +389,7 @@ func CreateBlockchain(address string) (*Blockchain, error) {
 		db:  db,
 	}
 
-	return &bc, nil
+	return bc, nil
 }
 
 // NewBlockchain is used to open a db file,
