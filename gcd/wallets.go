@@ -22,6 +22,7 @@ func NewWallet() (*Wallet, error) {
 
 	err := Wallet.LoadFromFile()
 	if os.IsNotExist(err) {
+		log.Printf("[WLLT] Wallet did not exist, creating.")
 		Wallet.SaveToFile()
 	}
 

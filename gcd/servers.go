@@ -20,13 +20,16 @@ const (
 	commandLength       = 12
 )
 
-// GcdServer is the structure which defines the Gophercoin
+// Server is the structure which defines the Gophercoin
 // Daemon
-type GcdServer struct {
-	db              *Blockchain
-	wallet          *Wallet
-	utxoSet         *UTXOSet
-	Router          *mux.Router
+type Server struct {
+	cfg     Config
+	db      *Blockchain
+	wallet  *Wallet
+	utxoSet *UTXOSet
+
+	Router *mux.Router
+
 	knownNodes      []Peer
 	nodeAddress     string
 	blocksInTransit [][]byte
@@ -37,18 +40,35 @@ type GcdServer struct {
 }
 
 // StartServer is the function used to start the gcd Server
-func (s *GcdServer) StartServer() {
+func (s *Server) StartServer() {
+	defer s.wg.Done()
 	// create a listener on TCP port
-	lis, err := net.Listen(protocol, "127.0.0.1:"+defaultProtocolPort)
-	if err != nil {
-		log.Printf("failed to listen: %v", err)
+	var lis net.Listener
+
+	if s.cfg.peerPort != "" {
+
+		lst, err := net.Listen(protocol, "127.0.0.1:"+s.cfg.peerPort)
+		if err != nil {
+			log.Printf("failed to listen: %v", err)
+			return
+		}
+		lis = lst
+	} else {
+		log.Printf("failed to listen: %v", s.cfg)
+		lst, err := net.Listen(protocol, "127.0.0.1:"+defaultProtocolPort)
+		if err != nil {
+			log.Printf("failed to listen: %v", err)
+			return
+		}
+		lis = lst
 	}
-	log.Printf("[GCD] PeerServer listening on port %s", defaultProtocolPort)
+
+	log.Printf("[GCD] PeerServer listening on port %s", s.nodeAddress)
 
 	if len(s.knownNodes) > 0 {
-		if s.nodeAddress != s.knownNodes[0].address {
-			log.Printf("[PRSV] sending version message to %s\n", s.knownNodes[0].address)
-			s.sendVersion(s.knownNodes[0].address, s.db)
+		if s.nodeAddress != s.knownNodes[0].Address {
+			log.Printf("[PRSV] sending version message to %s\n", s.knownNodes[0].Address)
+			s.sendVersion(s.knownNodes[0].Address, s.db)
 		}
 	}
 
@@ -59,6 +79,23 @@ func (s *GcdServer) StartServer() {
 		}
 		go s.handleConnection(conn, s.db)
 		s.wg.Add(1)
+	}
+
+}
+
+// StartMiner is the function used to start the gcd Server
+func (s *Server) StartMiner(msgChan chan interface{}, nodeServ chan interface{}, quitChan chan int) {
+	defer s.wg.Done()
+	log.Printf("[GCMNR] Miner ready")
+
+	for {
+		select {
+		case <-quitChan:
+			break
+		case msg := <-msgChan:
+			log.Printf("[GCMNR] Received %v", msg)
+		}
+
 	}
 
 }

@@ -24,10 +24,10 @@ type Blockchain struct {
 	db  *bolt.DB
 }
 
-// DBExists is used to check if the database
+// fileExists is used to check if the database
 // already exists locally or not
-func DBExists(dbFile string) bool {
-	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+func fileExists(path string) bool {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return false
 	}
 
@@ -336,13 +336,11 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 }
 
 // CreateBlockchain creates a new blockchain DB
-func CreateBlockchain(address string) (*Blockchain, error) {
+func CreateBlockchain(address string) (Blockchain, error) {
 	dbFile := fmt.Sprintf("%s%s", blocksBucket, bucketExtension)
 
-	log.Printf("[GCDB] Checking if %s exists\n", dbFile)
-	if DBExists(dbFile) {
-		log.Println("[GCDB] Blockchain already exists.")
-		return nil, fmt.Errorf("Blockchain already exists")
+	if fileExists(dbFile) {
+		return Blockchain{}, fmt.Errorf("Blockchain already exists")
 	}
 
 	var tip []byte
@@ -352,7 +350,7 @@ func CreateBlockchain(address string) (*Blockchain, error) {
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		log.Printf("[GCDB] err opening db: %+v\n", err)
-		return nil, err
+		return Blockchain{}, err
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
@@ -381,7 +379,7 @@ func CreateBlockchain(address string) (*Blockchain, error) {
 
 	if err != nil {
 		log.Printf("[GCDB] err in blockchain creation db method: %+v\n", err)
-		return nil, err
+		return Blockchain{}, err
 	}
 
 	bc := Blockchain{
@@ -389,7 +387,7 @@ func CreateBlockchain(address string) (*Blockchain, error) {
 		db:  db,
 	}
 
-	return &bc, nil
+	return bc, nil
 }
 
 // NewBlockchain is used to open a db file,
@@ -397,17 +395,17 @@ func CreateBlockchain(address string) (*Blockchain, error) {
 // if so gets the current blockchain tip,
 // else generates the genesis block and
 // sets it as the tip
-func NewBlockchain() (*Blockchain, error) {
-	dbFile := fmt.Sprintf("%s%s", blocksBucket, bucketExtension)
-	log.Printf("[GCDB] Checking if %s exists\n", dbFile)
-	if DBExists(dbFile) == false {
+func NewBlockchain(path string) (*Blockchain, error) {
+
+	if fileExists(path) == false {
 		return nil, fmt.Errorf(noExistingBlockchainFound)
 	}
 
 	var tip []byte
-	db, err := bolt.Open(dbFile, 0600, nil)
+	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		log.Printf("[GCDB] err opening db: %+v\n", err)
+		return nil, err
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
