@@ -2,10 +2,7 @@ package gcd
 
 import (
 	"log"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 )
 
 // gcdMain is the real main function for gcd.  It is necessary to work around
@@ -13,11 +10,14 @@ import (
 // optional serverChan parameter is mainly used by the service code to be
 // notified with the server once it is setup so it can gracefully stop it when
 // requested from the service control manager.
-func gcdMain(serverChan chan<- *GcdServer) error {
+func gcdMain(serverChan chan<- *Server, cfg Config) error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-
-	var sync sync.WaitGroup
+	log.Printf("[GCD] Preparing to launch.")
+	var (
+		sync sync.WaitGroup
+		gcd  *Server
+	)
 
 	externalAddress := getExternalAddress()
 
@@ -27,26 +27,80 @@ func gcdMain(serverChan chan<- *GcdServer) error {
 		log.Printf("[GCD] External address: %s", externalAddress)
 	}
 
-	gcd := &GcdServer{
+	// base Server structure, after declaring it we try to initiate
+	// some of the components from a possible config structure
+	gcd = &Server{
 		knownNodes:      []Peer{},
 		nodeAddress:     externalAddress + ":" + string(defaultProtocolPort),
 		blocksInTransit: [][]byte{},
 		memPool:         map[string]Transaction{},
 		wg:              &sync,
+		cfg:             cfg,
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		log.Printf("[GCD] Catching signal, terminating gracefully.")
-		os.Exit(1)
-	}()
+	// In case a config structure was able to be built from flags
+	if (cfg != Config{}) {
+		// In case flags provide a peer port
+		if cfg.peerPort != "" {
+			gcd.nodeAddress = externalAddress + ":" + string(cfg.peerPort)
+		}
+		// In case flags provide a peer port
+		if cfg.restPort != "" {
+			gcd.nodeAddress = externalAddress + ":" + string(cfg.peerPort)
+		}
+		// In case flags provide a wallet path
+		if cfg.walletPath != "" {
+			wallet, err := NewWallet()
+			if err != nil {
+				log.Printf("[GCD] Failed to create/load Wallet: %+v", err)
 
-	go gcd.BuildAndServeAPI()
-	sync.Add(1)
+			} else {
+				gcd.wallet = wallet
+			}
+
+		}
+		// In case flags provide a wallet path
+		if cfg.dbPath != "" {
+			// initialize blockchain
+			db, err := NewBlockchain(cfg.dbPath)
+			if err != nil {
+				log.Printf("[GCD] Failed to create/load Wallet: %+v", err)
+			} else {
+				log.Printf("[GCD] Database successfully opened.")
+				gcd.db = db
+				// perform utxo reindexing task
+				UTXOSet := UTXOSet{
+					chain: gcd.db,
+				}
+				gcd.utxoSet = &UTXOSet
+				go func() {
+					log.Printf("[GCDB] Reindexing UTXO Set.")
+
+					gcd.utxoSet.Reindex()
+					ctx := gcd.utxoSet.CountTransactions()
+					log.Printf("[GCDB] Finished reindexing UTXO Set, there are %d transactions in it.", ctx)
+
+				}()
+
+			}
+		}
+	}
+	quitChan := make(chan int)
+	minerChan := make(chan interface{})
+	nodeServChan := make(chan interface{})
+
+	if gcd.cfg.restPort != "" {
+		go gcd.BuildAndServeAPI()
+		sync.Add(1)
+	}
+
 	go gcd.StartServer()
 	sync.Add(1)
+
+	if gcd.cfg.miningNode == true {
+		go gcd.StartMiner(minerChan, nodeServChan, quitChan)
+		sync.Add(1)
+	}
 
 	if serverChan != nil {
 		serverChan <- gcd
@@ -60,8 +114,10 @@ func gcdMain(serverChan chan<- *GcdServer) error {
 // Main is the entrypoint for the Gophercoin Daemon
 func Main() error {
 
+	cfg := loadConfig()
+
 	// Work around defer not working after os.Exit()
-	if err := gcdMain(nil); err != nil {
+	if err := gcdMain(nil, cfg); err != nil {
 		return err
 	}
 

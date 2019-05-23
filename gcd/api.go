@@ -8,7 +8,7 @@ import (
 )
 
 // BuildAndServeAPI is the function used to serve the API endpoints
-func (s *GcdServer) BuildAndServeAPI() {
+func (s *Server) BuildAndServeAPI() {
 	log.Println("[GCDAPI] Building API endpoints.")
 
 	s.Router = mux.NewRouter()

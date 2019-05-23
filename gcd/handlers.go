@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -22,9 +23,8 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
-// ResponseError defined to be used for serialization purposes
-type ResponseError struct {
-	Status      int    `json:"Status"`
+// ResponseMessage defined to be used for serialization purposes
+type ResponseMessage struct {
 	Description string `json:"Description"`
 }
 
@@ -73,13 +73,19 @@ type ResponseBalance struct {
 	Balance int    `json:"Balance,omitempty"`
 }
 
+// ResponseSubmitTx defined to be used for serialization purposes
+type ResponseSubmitTx struct {
+	Status string `json:"Status"`
+}
+
 // Index is the handler for the '/' endpoint, which is to be used for
 // tests only
-func (s *GcdServer) Index(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Index(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.wallet == nil {
 		respondWithError(w, http.StatusBadRequest, "Wallet uninitialized")
+		return
 	}
 
 	p := []ResponseAddress{
@@ -95,56 +101,54 @@ func (s *GcdServer) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, p)
+	return
 }
 
 // CreateWallet is the handler for the '/create_wallet' endpoint, which is
 // responsible for asking the wallet for a new address.
-func (s *GcdServer) CreateWallet(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CreateWallet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	wallet, err := NewWallet()
 	if err != nil {
-		json.NewEncoder(w).Encode(
-			ResponseError{
-				Status:      404,
-				Description: fmt.Errorf("Failed to create new Wallet: %+v", err).Error(),
-			},
-		)
+		respondWithError(w, http.StatusBadRequest,
+			fmt.Errorf("Failed to create new Wallet: %+v", err).Error())
+		return
+
 	}
 	s.wallet = wallet
-	json.NewEncoder(w).Encode(
-		ResponseCreateWallet{
-			Status:      200,
-			Description: "Successfully created wallet!",
-			Address:     wallet.CreateAddress(),
-		},
-	)
-
+	respondWithJSON(w, http.StatusOK, ResponseAddress{
+		Address: wallet.CreateAddress(),
+	})
+	return
 }
 
 // NewAddress is the handler for the '/new_address' endpoint, which is
 // responsible for asking the wallet for a new address.
-func (s *GcdServer) NewAddress(w http.ResponseWriter, r *http.Request) {
+func (s *Server) NewAddress(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.wallet == nil {
 		respondWithError(w, http.StatusBadRequest, "Wallet uninitialized")
+		return
 	}
 	addr := ResponseAddress{
 		Address: s.wallet.CreateAddress(),
 	}
 
 	respondWithJSON(w, http.StatusOK, addr)
+	return
 }
 
 // ListAddresses is the handler for the '/list_addresses' endpoint, which is
 // responsible for asking the wallet for a new address.
-func (s *GcdServer) ListAddresses(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ListAddresses(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.wallet == nil {
 		respondWithError(w, http.StatusBadRequest, "Wallet uninitialized")
+		return
 	}
 
 	list := s.wallet.GetAddresses()
@@ -158,15 +162,17 @@ func (s *GcdServer) ListAddresses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, responseList)
+	return
 }
 
 // ListBlocks is the handler for the '/list_blocks' endpoint, which is
 // responsible for asking the wallet for a new address.
-func (s *GcdServer) ListBlocks(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ListBlocks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.db == nil {
 		respondWithError(w, http.StatusBadRequest, "Blockchain uninitialized")
+		return
 	}
 
 	var responseList ResponseListBlocks
@@ -191,22 +197,19 @@ func (s *GcdServer) ListBlocks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, responseList)
+	return
 }
 
 // CreateBlockchain is the handler for the '/create_blockchain' endpoint
-func (s *GcdServer) CreateBlockchain(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CreateBlockchain(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.wallet == nil {
 		wallet, err := NewWallet()
 		if err != nil {
-			json.NewEncoder(w).Encode(
-				ResponseError{
-					Status:      404,
-					Description: fmt.Errorf("Wallet uninitialized: %+v", err).Error(),
-				},
-			)
+			respondWithError(w, http.StatusBadRequest, fmt.Errorf("Wallet uninitialized: %+v", err).Error())
+			return
 		}
 		s.wallet = wallet
 	}
@@ -214,27 +217,29 @@ func (s *GcdServer) CreateBlockchain(w http.ResponseWriter, r *http.Request) {
 	addr := s.wallet.GetInitialAddress()
 
 	db, err := CreateBlockchain(addr)
+	var msg string
 	if err != nil {
-		json.NewEncoder(w).Encode(
-			ResponseError{
-				Status:      404,
-				Description: fmt.Errorf("Failed to create new db: %+v", err).Error(),
-			},
-		)
-	} else {
-		s.db = &db
-		json.NewEncoder(w).Encode(
-			ResponseCreateBlockchain{
-				Status:      200,
-				Description: "Successfully created the blockchain!",
-			},
-		)
+		msg = fmt.Errorf("Failed to create db: %+v", err).Error()
 	}
+
+	s.db = &db
+
+	if msg != "" {
+		respondWithJSON(w, http.StatusOK, ResponseMessage{
+			Description: msg,
+		})
+	} else {
+		respondWithJSON(w, http.StatusOK, ResponseMessage{
+			Description: "",
+		})
+	}
+
+	return
 
 }
 
 // GetBalance is the handler for the '/get_balance/{Address}' endpoint
-func (s *GcdServer) GetBalance(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetBalance(w http.ResponseWriter, r *http.Request) {
 	data := mux.Vars(r)
 	w.Header().Set("Content-Type", "application/json")
 	var balance int
@@ -245,12 +250,9 @@ func (s *GcdServer) GetBalance(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Get balance for: %v", string(data["Address"]))
 
 		if s.db == nil {
-			json.NewEncoder(w).Encode(
-				ResponseError{
-					Status:      404,
-					Description: fmt.Errorf("Blockhain not found").Error(),
-				},
-			)
+			respondWithError(w, http.StatusBadRequest,
+				fmt.Errorf("Blockhain not found").Error())
+			return
 
 		}
 
@@ -269,45 +271,39 @@ func (s *GcdServer) GetBalance(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Finished reindexing utxoSet, there are %d transactions in it.", ctx)
 			}()
 
-			json.NewEncoder(w).Encode(
-				ResponseError{
-					Status:      201,
-					Description: fmt.Errorf("Reindexing UTXOs").Error(),
-				},
-			)
-		} else {
-			log.Printf("Finding all utxos for address: %v.", string(data["Address"]))
-			pubKeyHash := Base58Decode([]byte(data["Address"]))
-			pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
-			UTXOs := s.utxoSet.FindUTXO(pubKeyHash)
+			respondWithJSON(w, http.StatusOK, ResponseMessage{
+				Description: "Reindexing UTXOs.",
+			})
+			return
 
-			if len(UTXOs) >= 1 {
-				for _, out := range UTXOs {
-
-					log.Printf("utxo: %v.", out)
-					balance += out.Value
-				}
-			}
-			json.NewEncoder(w).Encode(
-				ResponseBalance{
-					Address: data["Address"],
-					Balance: balance,
-				},
-			)
 		}
-	} else {
-		json.NewEncoder(w).Encode(
-			ResponseError{
-				Status:      415,
-				Description: fmt.Errorf("Error validating input").Error(),
-			},
-		)
+		log.Printf("Finding all utxos for address: %v.", string(data["Address"]))
+		pubKeyHash := Base58Decode([]byte(data["Address"]))
+		pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+		UTXOs := s.utxoSet.FindUTXO(pubKeyHash)
+
+		if len(UTXOs) >= 1 {
+			for _, out := range UTXOs {
+
+				log.Printf("utxo: %v.", out)
+				balance += out.Value
+			}
+		}
+		respondWithJSON(w, http.StatusOK, ResponseBalance{
+			Address: data["Address"],
+			Balance: balance,
+		})
+
 	}
+
+	respondWithError(w, http.StatusBadRequest,
+		fmt.Errorf("Error validating input").Error())
+	return
 
 }
 
 // GenerateBlocks is the handler for the '/generate_blocks/{Amount}' endpoint
-func (s *GcdServer) GenerateBlocks(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GenerateBlocks(w http.ResponseWriter, r *http.Request) {
 
 	data := mux.Vars(r)
 	w.Header().Set("Content-Type", "application/json")
@@ -316,53 +312,101 @@ func (s *GcdServer) GenerateBlocks(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Generating %v blocks.", data["Amount"])
 
 		if s.db == nil {
-			json.NewEncoder(w).Encode(
-				ResponseError{
-					Status:      404,
-					Description: fmt.Errorf("Blockhain not found").Error(),
-				},
-			)
+			respondWithError(w, http.StatusBadRequest,
+				fmt.Errorf("Blockhain not found").Error())
+			return
 
-		} else {
-			addr := s.wallet.CreateAddress()
-			amt, err := strconv.Atoi(data["Amount"])
-			if err != nil {
-				json.NewEncoder(w).Encode(
-					ResponseError{
-						Status:      415,
-						Description: fmt.Errorf("Error validating input").Error(),
-					},
-				)
-			} else {
-				for i := 0; i < amt; i++ {
-					cbTx := NewCoinbaseTX(addr, "")
-					txs := []*Transaction{cbTx}
-
-					newBlock := s.db.MineBlock(txs)
-					s.utxoSet.Update(newBlock)
-				}
-			}
 		}
+		addr := s.wallet.CreateAddress()
+		amt, err := strconv.Atoi(data["Amount"])
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest,
+				fmt.Errorf("Error validating input").Error())
+			return
+
+		}
+		var responseList ResponseListBlocks
+		for i := 0; i < amt; i++ {
+			cbTx := NewCoinbaseTX(addr, "")
+			txs := []*Transaction{cbTx}
+
+			newBlock := s.db.MineBlock(txs)
+			s.utxoSet.Update(newBlock)
+
+			pow := NewProofOfWork(newBlock)
+			b := ResponseBlock{
+				Height:        newBlock.Height,
+				PrevBlockHash: newBlock.PrevBlockHash,
+				Transactions:  newBlock.Transactions,
+				Hash:          newBlock.Hash,
+				ProofOfWork:   strconv.FormatBool(pow.Validate()),
+			}
+			responseList.Blocks = append(responseList.Blocks, b)
+		}
+		respondWithJSON(w, http.StatusOK, responseList)
+
 	}
+	respondWithError(w, http.StatusBadRequest,
+		fmt.Errorf("Error validating input").Error())
+	return
 
 }
 
 // SubmitTx is the handler for the '/submit_tx/{Transaction}' endpoint
-func (s *GcdServer) SubmitTx(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SubmitTx(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	w.Header().Set("Content-Type", "application/json")
 
 	if vars["Transaction"] == "" {
 		respondWithError(w, http.StatusBadRequest, "Empty transaction")
+		return
 	}
 
-	respondWithJSON(w, http.StatusOK, p)
+	p := ResponseSubmitTx{}
 
+	respondWithJSON(w, http.StatusOK, p)
+	return
 }
 
 // AddNode is the handler for the '/add_node/{Address}' endpoint
-func (s *GcdServer) AddNode(w http.ResponseWriter, r *http.Request) {
+func (s *Server) AddNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	w.Header().Set("Content-Type", "application/json")
 
+	if vars["Address"] == "" {
+		respondWithError(w, http.StatusBadRequest, "No peer address given")
+		return
+	}
+	splitInput := strings.Split(vars["Address"], ":")
+	ip, port := splitInput[0], splitInput[1]
+
+	if ip == "localhost" || ip == "127.0.0.1" || ip == "" {
+		if port == defaultProtocolPort {
+			respondWithError(w, http.StatusBadRequest, "Cannot add own node")
+			return
+		}
+	}
+	log.Printf("Trying to add new peer: %v", vars["Address"])
+
+	for _, peer := range s.knownNodes {
+		if vars["Address"] == peer.Address {
+			respondWithError(w, http.StatusBadRequest, "Peer is known")
+			return
+		}
+
+		split := strings.Split(peer.Address, ":")
+
+		if split[1] == port {
+			respondWithError(w, http.StatusBadRequest, "Peer is known")
+			return
+		}
+
+	}
+
+	s.knownNodes = append(s.knownNodes, Peer{
+		Address: vars["Address"],
+	})
+	log.Printf("Successfully added new peer: %v", vars["Address"])
+
+	respondWithJSON(w, http.StatusOK, s.knownNodes)
 }
