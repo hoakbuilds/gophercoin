@@ -51,7 +51,7 @@ func Logger(inner http.Handler, name string) http.Handler {
 		inner.ServeHTTP(w, r)
 
 		log.Printf(
-			"%s\t%s\t%s\t%s",
+			"[GCDAPI] %s\t%s\t%s\t%s",
 			r.Method,
 			r.RequestURI,
 			name,
@@ -107,6 +107,12 @@ func (s *Server) BuildAndServeAPI() {
 			"GET",
 			"/list_addresses",
 			s.ListAddresses,
+		},
+		Route{
+			"ListMempool",
+			"GET",
+			"/list_mempool",
+			s.ListMempool,
 		},
 		Route{
 			"ListBlocks",

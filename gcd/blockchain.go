@@ -192,6 +192,36 @@ func (bc *Blockchain) AddBlock(block *Block) {
 	}
 }
 
+// AddGenesis saves the block into the blockchain
+func (bc *Blockchain) AddGenesis(block *Block) {
+	err := bc.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucket([]byte(blocksBucket))
+		if err != nil {
+			log.Printf("[GCDB] err creating blockchain bucket: %+v\n", err)
+		}
+
+		blockData, err := block.SerializeBlock()
+		if err != nil {
+			log.Panic(err)
+		}
+		err = b.Put(block.Hash, blockData)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put([]byte("l"), block.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+		bc.tip = block.Hash
+
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
 // FindTransaction is used to get a Transaction by the given transaction hash
 // passed as the ID
 func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {

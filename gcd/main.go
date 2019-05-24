@@ -46,11 +46,11 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 	if (cfg != Config{}) {
 		// In case flags provide a peer port
 		if cfg.peerPort != "" {
-			gcd.nodeAddress = externalAddress + ":" + string(cfg.peerPort)
+			gcd.nodeAddress = ":" + string(cfg.peerPort)
 		}
 		// In case flags provide a peer port
 		if cfg.restPort != "" {
-			gcd.nodeAddress = externalAddress + ":" + string(cfg.peerPort)
+			gcd.nodeAddress = ":" + string(cfg.peerPort)
 		}
 		// In case flags provide a wallet path
 		if cfg.walletPath != "" {
