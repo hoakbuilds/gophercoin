@@ -170,12 +170,17 @@ func (s *Server) sendTx(addr string, tnx *Transaction) {
 	s.sendData(addr, request)
 }
 
-func (s *Server) sendVersion(addr string, bc *Blockchain) {
-	bestHeight := bc.GetBestHeight()
-	log.Printf("best height: %d \n", bestHeight)
+func (s *Server) sendVersion(addr string) {
+	var bestHeight int
+	if s.db != nil {
+		bestHeight = s.db.GetBestHeight()
+	} else {
+		bestHeight = 0
+	}
+	log.Printf("Best height: %d \n", bestHeight)
 	version := Version{nodeVersion, bestHeight, s.nodeAddress}
 	payload := gobEncode(version)
-	log.Printf("sending payload: %+v\n", bytesToCommand(payload))
+	log.Printf("Sending payload: %+v\n", bytesToCommand(payload))
 	request := append(commandToBytes("version"), payload...)
 
 	s.sendData(addr, request)
@@ -210,7 +215,15 @@ func (s *Server) handleAddr(request []byte) {
 	s.requestBlocks()
 }
 
-func (s *Server) handleBlock(request []byte, bc *Blockchain) {
+func (s *Server) handleBlock(request []byte) {
+
+	if s.db == nil {
+		db, err := CreateBlockchain("")
+		if err != nil {
+			log.Printf("Could not create db: %v", err)
+		}
+		s.db = &db
+	}
 	var buff bytes.Buffer
 	var payload block
 
@@ -227,7 +240,7 @@ func (s *Server) handleBlock(request []byte, bc *Blockchain) {
 		log.Print(err)
 	}
 	fmt.Println("Recevied a new block!")
-	bc.AddBlock(block)
+	s.db.AddBlock(block)
 
 	log.Printf("Added block %x\n", block.Hash)
 
@@ -237,12 +250,12 @@ func (s *Server) handleBlock(request []byte, bc *Blockchain) {
 
 		s.blocksInTransit = s.blocksInTransit[1:]
 	} else {
-		UTXOSet := UTXOSet{bc}
+		UTXOSet := UTXOSet{s.db}
 		UTXOSet.Reindex()
 	}
 }
 
-func (s *Server) handleInv(request []byte, bc *Blockchain) {
+func (s *Server) handleInv(request []byte) {
 	var buff bytes.Buffer
 	var payload inv
 
@@ -279,7 +292,14 @@ func (s *Server) handleInv(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *Server) handleGetBlocks(request []byte, bc *Blockchain) {
+func (s *Server) handleGetBlocks(request []byte) {
+	if s.db == nil {
+		db, err := CreateBlockchain("")
+		if err != nil {
+			log.Printf("Could not create db: %v", err)
+		}
+		s.db = &db
+	}
 	var buff bytes.Buffer
 	var payload getblocks
 
@@ -290,11 +310,18 @@ func (s *Server) handleGetBlocks(request []byte, bc *Blockchain) {
 		log.Panic(err)
 	}
 
-	blocks := bc.GetBlockHashes()
+	blocks := s.db.GetBlockHashes()
 	s.sendInv(payload.AddrFrom, "block", blocks)
 }
 
-func (s *Server) handleGetData(request []byte, bc *Blockchain) {
+func (s *Server) handleGetData(request []byte) {
+	if s.db == nil {
+		db, err := CreateBlockchain("")
+		if err != nil {
+			log.Printf("Could not create db: %v", err)
+		}
+		s.db = &db
+	}
 	var buff bytes.Buffer
 	var payload getdata
 
@@ -306,7 +333,7 @@ func (s *Server) handleGetData(request []byte, bc *Blockchain) {
 	}
 
 	if payload.Type == "block" {
-		block, err := bc.GetBlock([]byte(payload.ID))
+		block, err := s.db.GetBlock([]byte(payload.ID))
 		if err != nil {
 			return
 		}
@@ -323,7 +350,14 @@ func (s *Server) handleGetData(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *Server) handleTx(request []byte, bc *Blockchain) {
+func (s *Server) handleTx(request []byte) {
+	if s.db == nil {
+		db, err := CreateBlockchain("")
+		if err != nil {
+			log.Printf("Could not create db: %v", err)
+		}
+		s.db = &db
+	}
 	var buff bytes.Buffer
 	var payload tx
 
@@ -352,7 +386,7 @@ func (s *Server) handleTx(request []byte, bc *Blockchain) {
 			for id := range s.memPool {
 				tx := s.memPool[id]
 				log.Printf("verifying transaction: %s\n", id)
-				if bc.VerifyTransaction(&tx) {
+				if s.db.VerifyTransaction(&tx) {
 					txs = append(txs, &tx)
 				}
 			}
@@ -365,8 +399,8 @@ func (s *Server) handleTx(request []byte, bc *Blockchain) {
 			cbTx := NewCoinbaseTX(s.miningAddress, "")
 			txs = append(txs, cbTx)
 
-			newBlock := bc.MineBlock(txs)
-			UTXOSet := UTXOSet{bc}
+			newBlock := s.db.MineBlock(txs)
+			UTXOSet := UTXOSet{s.db}
 			UTXOSet.Reindex()
 
 			fmt.Println("New block is mined!")
@@ -389,7 +423,14 @@ func (s *Server) handleTx(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *Server) handleVersion(request []byte, bc *Blockchain) {
+func (s *Server) handleVersion(request []byte) {
+	if s.db == nil {
+		db, err := CreateBlockchain("")
+		if err != nil {
+			log.Printf("Could not create db: %v", err)
+		}
+		s.db = &db
+	}
 	var buff bytes.Buffer
 	var payload Version
 
@@ -400,18 +441,23 @@ func (s *Server) handleVersion(request []byte, bc *Blockchain) {
 		log.Panic(err)
 	}
 
-	myBestHeight := bc.GetBestHeight()
+	if s.db == nil && payload.BestHeight != 0 {
+		log.Printf("sending getblocks message to %v\n", s.knownNodes[0])
+		s.sendGetBlocks(payload.AddrFrom)
+	}
+
+	myBestHeight := s.db.GetBestHeight()
 	foreignerBestHeight := payload.BestHeight
 
 	log.Printf("best height: %d \tpeer %s best height: %d\n", myBestHeight, payload.AddrFrom, foreignerBestHeight)
 	if myBestHeight < foreignerBestHeight {
 
-		log.Printf("sending getblocks message to %s\n", s.knownNodes[0])
+		log.Printf("sending getblocks message to %v\n", s.knownNodes[0])
 		s.sendGetBlocks(payload.AddrFrom)
 	} else if myBestHeight > foreignerBestHeight {
 
-		log.Printf("sending version message to %s\n", s.knownNodes[0])
-		s.sendVersion(payload.AddrFrom, bc)
+		log.Printf("sending version message to %v\n", s.knownNodes[0])
+		s.sendVersion(payload.AddrFrom)
 	}
 
 	// sendAddr(payload.AddrFrom)
@@ -421,7 +467,7 @@ func (s *Server) handleVersion(request []byte, bc *Blockchain) {
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn, bc *Blockchain) {
+func (s *Server) handleConnection(conn net.Conn) {
 	request, err := ioutil.ReadAll(conn)
 	if err != nil {
 		log.Panic(err)
@@ -433,17 +479,17 @@ func (s *Server) handleConnection(conn net.Conn, bc *Blockchain) {
 	case "addr":
 		s.handleAddr(request)
 	case "block":
-		s.handleBlock(request, bc)
+		s.handleBlock(request)
 	case "inv":
-		s.handleInv(request, bc)
+		s.handleInv(request)
 	case "getblocks":
-		s.handleGetBlocks(request, bc)
+		s.handleGetBlocks(request)
 	case "getdata":
-		s.handleGetData(request, bc)
+		s.handleGetData(request)
 	case "tx":
-		s.handleTx(request, bc)
+		s.handleTx(request)
 	case "version":
-		s.handleVersion(request, bc)
+		s.handleVersion(request)
 	default:
 		fmt.Println("Unknown command!")
 	}

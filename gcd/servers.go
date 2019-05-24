@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/gorilla/mux"
 )
@@ -37,25 +39,39 @@ type Server struct {
 	miningAddress   string
 
 	wg *sync.WaitGroup
+
+	quitChan     chan int
+	minerChan    chan interface{}
+	nodeServChan chan interface{}
 }
 
 // StartServer is the function used to start the gcd Server
 func (s *Server) StartServer() {
 	defer s.wg.Done()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		log.Printf("[GCD] Catching signal, terminating gracefully.")
+		if s.wallet != nil {
+			s.wallet.SaveToFile()
+		}
+
+		os.Exit(1)
+	}()
 	// create a listener on TCP port
 	var lis net.Listener
 
 	if s.cfg.peerPort != "" {
 
-		lst, err := net.Listen(protocol, "127.0.0.1:"+s.cfg.peerPort)
+		lst, err := net.Listen(protocol, ":"+s.cfg.peerPort)
 		if err != nil {
 			log.Printf("failed to listen: %v", err)
 			return
 		}
 		lis = lst
 	} else {
-		log.Printf("failed to listen: %v", s.cfg)
-		lst, err := net.Listen(protocol, "127.0.0.1:"+defaultProtocolPort)
+		lst, err := net.Listen(protocol, ":"+defaultProtocolPort)
 		if err != nil {
 			log.Printf("failed to listen: %v", err)
 			return
@@ -68,7 +84,7 @@ func (s *Server) StartServer() {
 	if len(s.knownNodes) > 0 {
 		if s.nodeAddress != s.knownNodes[0].Address {
 			log.Printf("[PRSV] sending version message to %s\n", s.knownNodes[0].Address)
-			s.sendVersion(s.knownNodes[0].Address, s.db)
+			s.sendVersion(s.knownNodes[0].Address)
 		}
 	}
 
@@ -77,22 +93,23 @@ func (s *Server) StartServer() {
 		if err != nil {
 			log.Panic(err)
 		}
-		go s.handleConnection(conn, s.db)
+		go s.handleConnection(conn)
 		s.wg.Add(1)
 	}
 
 }
 
 // StartMiner is the function used to start the gcd Server
-func (s *Server) StartMiner(msgChan chan interface{}, nodeServ chan interface{}, quitChan chan int) {
+func (s *Server) StartMiner() {
 	defer s.wg.Done()
 	log.Printf("[GCMNR] Miner ready")
 
 	for {
 		select {
-		case <-quitChan:
+		case <-s.quitChan:
+			log.Printf("[GCMNR] Received stop signal")
 			break
-		case msg := <-msgChan:
+		case msg := <-s.minerChan:
 			log.Printf("[GCMNR] Received %v", msg)
 		}
 

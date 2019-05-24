@@ -49,7 +49,6 @@ func (u *UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 	db := u.chain.db
 	var UTXOs []TXOutput
 
-	log.Printf("Find UTXOs for PKH: %v", pubKeyHash)
 	err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
 		c := b.Cursor()
@@ -57,7 +56,6 @@ func (u *UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			outs := DeserializeOutputs(v)
 
-			log.Printf("outputs: %v", outs)
 			for _, out := range outs.Outputs {
 				if out.IsLockedWithKey(pubKeyHash) {
 					UTXOs = append(UTXOs, out)

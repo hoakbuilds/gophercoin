@@ -1,6 +1,7 @@
 package gcd
 
 import (
+	"fmt"
 	"log"
 	"sync"
 )
@@ -22,7 +23,7 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 	externalAddress := getExternalAddress()
 
 	if externalAddress == "" {
-		log.Print("[GCD] Could not fetch external address, exiting.")
+		return fmt.Errorf("[GCD] Could not fetch external address")
 	} else {
 		log.Printf("[GCD] External address: %s", externalAddress)
 	}
@@ -36,6 +37,9 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 		memPool:         map[string]Transaction{},
 		wg:              &sync,
 		cfg:             cfg,
+		quitChan:        make(chan int),
+		minerChan:       make(chan interface{}),
+		nodeServChan:    make(chan interface{}),
 	}
 
 	// In case a config structure was able to be built from flags
@@ -85,10 +89,6 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 			}
 		}
 	}
-	quitChan := make(chan int)
-	minerChan := make(chan interface{})
-	nodeServChan := make(chan interface{})
-
 	if gcd.cfg.restPort != "" {
 		go gcd.BuildAndServeAPI()
 		sync.Add(1)
@@ -98,7 +98,7 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 	sync.Add(1)
 
 	if gcd.cfg.miningNode == true {
-		go gcd.StartMiner(minerChan, nodeServChan, quitChan)
+		go gcd.StartMiner()
 		sync.Add(1)
 	}
 

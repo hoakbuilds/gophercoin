@@ -70,12 +70,14 @@ type ResponseCreateWallet struct {
 // ResponseBalance defined to be used for serialization purposes
 type ResponseBalance struct {
 	Address string `json:"Address,omitempty"`
-	Balance int    `json:"Balance,omitempty"`
+	Balance int64  `json:"Balance,omitempty"`
 }
 
 // ResponseSubmitTx defined to be used for serialization purposes
 type ResponseSubmitTx struct {
-	Status string `json:"Status"`
+	Status   string      `json:"Status"`
+	Tx       Transaction `json:"Transaction"`
+	NewBlock Block       `json:"NewBlock"`
 }
 
 // Index is the handler for the '/' endpoint, which is to be used for
@@ -214,8 +216,8 @@ func (s *Server) CreateBlockchain(w http.ResponseWriter, r *http.Request) {
 		s.wallet = wallet
 	}
 
-	addr := s.wallet.GetInitialAddress()
-
+	addr := s.wallet.CreateAddress()
+	log.Printf("Mining genesis block to address: %v", addr)
 	db, err := CreateBlockchain(addr)
 	var msg string
 	if err != nil {
@@ -247,8 +249,6 @@ func (s *Server) GetBalance(w http.ResponseWriter, r *http.Request) {
 
 	if data["Address"] != "" {
 
-		log.Printf("Get balance for: %v", string(data["Address"]))
-
 		if s.db == nil {
 			respondWithError(w, http.StatusBadRequest,
 				fmt.Errorf("Blockhain not found").Error())
@@ -277,7 +277,6 @@ func (s *Server) GetBalance(w http.ResponseWriter, r *http.Request) {
 			return
 
 		}
-		log.Printf("Finding all utxos for address: %v.", string(data["Address"]))
 		pubKeyHash := Base58Decode([]byte(data["Address"]))
 		pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 		UTXOs := s.utxoSet.FindUTXO(pubKeyHash)
@@ -285,15 +284,15 @@ func (s *Server) GetBalance(w http.ResponseWriter, r *http.Request) {
 		if len(UTXOs) >= 1 {
 			for _, out := range UTXOs {
 
-				log.Printf("utxo: %v.", out)
 				balance += out.Value
 			}
 		}
+		log.Printf("Address: %v Balance: %v", string(data["Address"]), balance)
 		respondWithJSON(w, http.StatusOK, ResponseBalance{
 			Address: data["Address"],
-			Balance: balance,
+			Balance: int64(balance),
 		})
-
+		return
 	}
 
 	respondWithError(w, http.StatusBadRequest,
@@ -357,12 +356,36 @@ func (s *Server) SubmitTx(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	w.Header().Set("Content-Type", "application/json")
 
-	if vars["Transaction"] == "" {
+	if vars["From"] == "" || vars["To"] == "" ||
+		vars["Amount"] == "" {
 		respondWithError(w, http.StatusBadRequest, "Empty transaction")
 		return
 	}
 
-	p := ResponseSubmitTx{}
+	wallet := s.wallet.GetAddress(vars["From"])
+
+	amount, err := strconv.Atoi(vars["Amount"])
+
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid amount")
+		return
+	}
+
+	tx := NewUTXOTransaction(&wallet, vars["To"], amount, s.utxoSet)
+
+	p := ResponseSubmitTx{
+		Status: "OK",
+		Tx:     *tx,
+	}
+
+	if len(s.knownNodes) < 1 {
+		p.Status = "No peers available, instantly mined."
+		cbTx := NewCoinbaseTX(vars["From"], "")
+		txs := []*Transaction{cbTx, tx}
+
+		p.NewBlock = *s.db.MineBlock(txs)
+		s.utxoSet.Update(&p.NewBlock)
+	}
 
 	respondWithJSON(w, http.StatusOK, p)
 	return
@@ -406,6 +429,10 @@ func (s *Server) AddNode(w http.ResponseWriter, r *http.Request) {
 	s.knownNodes = append(s.knownNodes, Peer{
 		Address: vars["Address"],
 	})
+
+	go s.sendVersion(vars["Address"])
+	s.wg.Add(1)
+
 	log.Printf("Successfully added new peer: %v", vars["Address"])
 
 	respondWithJSON(w, http.StatusOK, s.knownNodes)
