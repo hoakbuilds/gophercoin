@@ -10,7 +10,7 @@
           <th>Transactions</th>
         </tr>
         <tr v-for="block in blocks" v-bind:key="block.height">
-          <td>{{block.Timestamp}}</td>
+          <td>{{block.Timestamp | formatDate }}</td>
           <td>{{block.Height}}</td>
           <td>{{block.Hash}}</td>
           <td>{{block.TXcount}}</td>
