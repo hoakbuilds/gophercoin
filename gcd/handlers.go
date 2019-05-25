@@ -198,6 +198,7 @@ func (s *Server) ListBlocks(w http.ResponseWriter, r *http.Request) {
 
 		pow := NewProofOfWork(block)
 		b := ResponseBlock{
+			Timestamp:     block.Timestamp,
 			Height:        block.Height,
 			PrevBlockHash: block.PrevBlockHash,
 			Transactions:  block.Transactions,
