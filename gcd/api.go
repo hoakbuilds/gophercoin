@@ -121,6 +121,12 @@ func (s *Server) BuildAndServeAPI() {
 			s.ListBlocks,
 		},
 		Route{
+			"NodeInfo",
+			"GET",
+			"/node_info",
+			s.NodeInfo,
+		},
+		Route{
 			"SubmitTx",
 			"POST",
 			"/submit_tx/{From}/{To}/{Amount}",

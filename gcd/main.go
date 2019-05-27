@@ -24,9 +24,9 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 
 	if externalAddress == "" {
 		return fmt.Errorf("[GCD] Could not fetch external address")
-	} else {
-		log.Printf("[GCD] External address: %s", externalAddress)
 	}
+
+	log.Printf("[GCD] External address: %s", externalAddress)
 
 	// base Server structure, after declaring it we try to initiate
 	// some of the components from a possible config structure

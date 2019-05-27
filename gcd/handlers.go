@@ -29,6 +29,14 @@ type ResponseMessage struct {
 	Description string `json:"Description"`
 }
 
+// ResponseInfo defined to be used for serialization purposes
+type ResponseInfo struct {
+	Protocol string `json:"Protocol"`
+	Peers    int    `json:"Peers"`
+	Mining   string `json:"Mining"`
+	Synced   string `json:"Synced"`
+}
+
 // ResponseTx defined to be used for serialization purposes
 type ResponseTx struct {
 	ID   []byte     `json:"ID"`
@@ -153,6 +161,37 @@ func (s *Server) NewAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, addr)
+	return
+}
+
+// NodeInfo is the handler for the '/list_addresses' endpoint, which is
+// responsible for asking the wallet for a new address.
+func (s *Server) NodeInfo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.wallet == nil {
+		respondWithError(w, http.StatusBadRequest, "Wallet uninitialized")
+		return
+	}
+
+	var response ResponseInfo
+
+	if s.cfg.miningNode == true {
+		response.Mining = "true"
+	} else {
+		response.Mining = "false"
+	}
+
+	if s.cfg.peerPort != "" {
+		response.Protocol = s.cfg.peerPort
+	} else {
+		response.Protocol = defaultProtocolPort
+	}
+
+	response.Peers = len(s.knownNodes)
+	response.Synced = "Consensus can't tell yet. Bullish."
+
+	respondWithJSON(w, http.StatusOK, response)
 	return
 }
 
