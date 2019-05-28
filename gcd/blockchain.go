@@ -192,6 +192,36 @@ func (bc *Blockchain) AddBlock(block *Block) {
 	}
 }
 
+// AddGenesis saves the block into the blockchain
+func (bc *Blockchain) AddGenesis(block *Block) {
+	err := bc.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucket([]byte(blocksBucket))
+		if err != nil {
+			log.Printf("[GCDB] err creating blockchain bucket: %+v\n", err)
+		}
+
+		blockData, err := block.SerializeBlock()
+		if err != nil {
+			log.Panic(err)
+		}
+		err = b.Put(block.Hash, blockData)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put([]byte("l"), block.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+		bc.tip = block.Hash
+
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
 // FindTransaction is used to get a Transaction by the given transaction hash
 // passed as the ID
 func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
@@ -344,8 +374,6 @@ func CreateBlockchain(address string) (Blockchain, error) {
 	}
 
 	var tip []byte
-	cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
-	genesis := genesisBlock(cbtx)
 
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
@@ -353,29 +381,35 @@ func CreateBlockchain(address string) (Blockchain, error) {
 		return Blockchain{}, err
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	if address != "" {
 
-		b, err := tx.CreateBucket([]byte(blocksBucket))
-		if err != nil {
-			log.Printf("[GCDB] err creating blockchain bucket: %+v\n", err)
-		}
-		ser, err := genesis.SerializeBlock()
-		if err != nil {
-			log.Printf("[GCDB] err serializing genesis block: %+v\n", err)
-		}
-		err = b.Put(genesis.Hash, ser)
-		if err != nil {
-			log.Printf("[GCDB] err updating genesis hash: %+v\n", err)
-		}
+		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
+		genesis := genesisBlock(cbtx)
 
-		err = b.Put([]byte("l"), genesis.Hash)
-		if err != nil {
-			log.Printf("[GCDB] err updating last block hash: %+v\n", err)
-		}
-		tip = genesis.Hash
+		err = db.Update(func(tx *bolt.Tx) error {
 
-		return nil
-	})
+			b, err := tx.CreateBucket([]byte(blocksBucket))
+			if err != nil {
+				log.Printf("[GCDB] err creating blockchain bucket: %+v\n", err)
+			}
+			ser, err := genesis.SerializeBlock()
+			if err != nil {
+				log.Printf("[GCDB] err serializing genesis block: %+v\n", err)
+			}
+			err = b.Put(genesis.Hash, ser)
+			if err != nil {
+				log.Printf("[GCDB] err updating genesis hash: %+v\n", err)
+			}
+
+			err = b.Put([]byte("l"), genesis.Hash)
+			if err != nil {
+				log.Printf("[GCDB] err updating last block hash: %+v\n", err)
+			}
+			tip = genesis.Hash
+
+			return nil
+		})
+	}
 
 	if err != nil {
 		log.Printf("[GCDB] err in blockchain creation db method: %+v\n", err)
