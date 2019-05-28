@@ -1,6 +1,6 @@
 # gcbxp
 
-> A Vue.js project
+> A block explorer for gophercoin
 
 ## Build Setup
 
@@ -17,5 +17,9 @@ npm run build
 # build for production and view the bundle analyzer report
 npm run build --report
 ```
+## Built With
 
-For a detailed explanation on how things work, check out the [guide](http://vuejs-templates.github.io/webpack/) and [docs for vue-loader](http://vuejs.github.io/vue-loader).
+* [VueJs](https://vuejs.org) - The programming language
+*  For a detailed explanation on how things work, check out the [guide](http://vuejs-templates.github.io/webpack/) and [docs for vue-loader](http://vuejs.github.io/vue-loader).
+
+
