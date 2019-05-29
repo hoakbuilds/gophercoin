@@ -310,7 +310,7 @@ func (s *Server) CreateBlockchain(w http.ResponseWriter, r *http.Request) {
 		})
 	} else {
 		respondWithJSON(w, http.StatusOK, ResponseMessage{
-			Description: "",
+			Description: "Successfully created blockchain	",
 		})
 	}
 
@@ -467,12 +467,9 @@ func (s *Server) SubmitTx(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(s.knownNodes) < 1 {
-		p.Status = "No peers available, instantly mined."
-		cbTx := NewCoinbaseTX(vars["From"], "")
-		txs := []*Transaction{cbTx, tx}
-
-		p.NewBlock = *s.db.MineBlock(txs)
-		s.utxoSet.Update(&p.NewBlock)
+		s.memPool[hex.EncodeToString(tx.ID)] = *tx
+		p.Status = "No peers available, added to mempool."
+		s.minerChan <- tx.ID
 	} else {
 		for _, node := range s.knownNodes {
 			if node.Address != s.nodeAddress {

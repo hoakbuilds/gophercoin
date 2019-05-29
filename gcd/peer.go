@@ -359,7 +359,7 @@ func (s *Server) handleTx(request []byte) {
 	tx := DeserializeTransaction(txData)
 	s.memPool[hex.EncodeToString(tx.ID)] = tx
 
-	s.minerChan <- tx
+	s.minerChan <- txData
 
 	if len(s.knownNodes) > 0 {
 		for _, node := range s.knownNodes {
@@ -367,49 +367,8 @@ func (s *Server) handleTx(request []byte) {
 				s.sendInv(node.Address, "tx", [][]byte{tx.ID})
 			}
 		}
-	} else {
-		if len(s.memPool) >= 2 && len(s.miningAddress) > 0 {
-		MineTransactions:
-			var txs []*Transaction
-
-			for id := range s.memPool {
-				tx := s.memPool[id]
-				log.Printf("[PRSRV] Verifying transaction: %s\n", id)
-				if s.db.VerifyTransaction(&tx) {
-					txs = append(txs, &tx)
-				}
-			}
-
-			if len(txs) == 0 {
-				log.Println("[PRSRV] All transactions are invalid! Waiting for new ones...")
-				return
-			}
-
-			cbTx := NewCoinbaseTX(s.miningAddress, "")
-			txs = append(txs, cbTx)
-
-			newBlock := s.db.MineBlock(txs)
-			UTXOSet := UTXOSet{s.db}
-			UTXOSet.Reindex()
-
-			log.Println("[PRSRV] New block is mined!")
-
-			for _, tx := range txs {
-				txID := hex.EncodeToString(tx.ID)
-				delete(s.memPool, txID)
-			}
-
-			for _, node := range s.knownNodes {
-				if node.Address != s.nodeAddress {
-					s.sendInv(node.Address, "block", [][]byte{newBlock.Hash})
-				}
-			}
-
-			if len(s.memPool) > 0 {
-				goto MineTransactions
-			}
-		}
 	}
+
 }
 
 func (s *Server) handleVersion(request []byte) {
