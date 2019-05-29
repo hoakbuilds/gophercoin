@@ -72,6 +72,7 @@ func NewCoinbaseTX(to, data string) *Transaction {
 	txout := NewTXOutput(subsidy, to)
 	tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
 	tx.ID = tx.Hash()
+	log.Printf("[GCMNR] New coinbase TX: %v", tx.ID)
 
 	return &tx
 }
