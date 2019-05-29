@@ -310,7 +310,7 @@ func (s *Server) CreateBlockchain(w http.ResponseWriter, r *http.Request) {
 		})
 	} else {
 		respondWithJSON(w, http.StatusOK, ResponseMessage{
-			Description: "Successfully created blockchain	",
+			Description: "Successfully created blockchain",
 		})
 	}
 
@@ -469,7 +469,7 @@ func (s *Server) SubmitTx(w http.ResponseWriter, r *http.Request) {
 	if len(s.knownNodes) < 1 {
 		s.memPool[hex.EncodeToString(tx.ID)] = *tx
 		p.Status = "No peers available, added to mempool."
-		s.minerChan <- tx.ID
+		s.miner.minerChan <- tx.ID
 	} else {
 		for _, node := range s.knownNodes {
 			if node.Address != s.nodeAddress {
@@ -505,6 +505,7 @@ func (s *Server) AddNode(w http.ResponseWriter, r *http.Request) {
 
 	for _, peer := range s.knownNodes {
 		if vars["Address"] == peer.Address {
+			s.sendVersion(peer.Address)
 			respondWithError(w, http.StatusBadRequest, "Peer is known")
 			return
 		}
@@ -512,6 +513,7 @@ func (s *Server) AddNode(w http.ResponseWriter, r *http.Request) {
 		split := strings.Split(peer.Address, ":")
 
 		if split[1] == port {
+			s.sendVersion(peer.Address)
 			respondWithError(w, http.StatusBadRequest, "Peer is known")
 			return
 		}
@@ -522,8 +524,7 @@ func (s *Server) AddNode(w http.ResponseWriter, r *http.Request) {
 		Address: vars["Address"],
 	})
 
-	go s.sendVersion(vars["Address"])
-	s.wg.Add(1)
+	s.sendVersion(vars["Address"])
 
 	log.Printf("[GCDAPI]  Successfully added new peer: %v", vars["Address"])
 

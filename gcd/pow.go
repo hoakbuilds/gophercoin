@@ -3,7 +3,6 @@ package gcd
 import (
 	"bytes"
 	"crypto/sha256"
-	"fmt"
 	"log"
 	"math/big"
 )
@@ -43,20 +42,21 @@ func (pow *ProofOfWork) run() (int, []byte) {
 	var hash [32]byte
 	counter := 0
 
-	log.Printf("[POW] Mining block containing \n\"%s\"\n", pow.block.Transactions)
+	log.Printf("[POW] Mining block containing \n%v\n", pow.block.Transactions)
 
 	for counter < maxNonce {
 		data := pow.prepareData(counter)
 		hash = sha256.Sum256(data)
 		hashInt.SetBytes(hash[:])
-
+		log.Printf("[POW-DEBUG] HASH: %v", hash)
 		if hashInt.Cmp(pow.target) == -1 {
 			break
 		} else {
 			counter++
 		}
 	}
-	fmt.Print("\n\n")
+
+	log.Printf("[POW] Block hash found: %v \n", hash)
 
 	return counter, hash[:]
 }

@@ -16,8 +16,9 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 	// initializes logging and configures it accordingly.
 	log.Printf("[GCD] Preparing to launch.")
 	var (
-		sync sync.WaitGroup
-		gcd  *Server
+		wg    sync.WaitGroup
+		gcd   *Server
+		miner *MinerServer
 	)
 
 	externalAddress := getExternalAddress()
@@ -35,13 +36,18 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 		nodeAddress:     externalAddress + ":" + string(defaultProtocolPort),
 		blocksInTransit: [][]byte{},
 		memPool:         map[string]Transaction{},
-		wg:              &sync,
+		wg:              &wg,
 		cfg:             cfg,
-		quitChan:        make(chan int),
-		minerChan:       make(chan []byte, 5),
-		timeChan:        make(chan float64, 5),
 		nodeServChan:    make(chan interface{}),
-		miningTxs:       false,
+	}
+	// base MinerServer structure, after declaring it we try to initiate
+	// some of the components from a possible config structure
+	miner = &MinerServer{
+		server:    gcd,
+		quitChan:  make(chan int),
+		minerChan: make(chan []byte, 5),
+		timeChan:  make(chan int64, 5),
+		miningTxs: false,
 	}
 
 	// In case a config structure was able to be built from flags
@@ -61,6 +67,7 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 				log.Printf("[GCD] Failed to create/load Wallet: %+v", err)
 
 			} else {
+				log.Printf("[GCD] Wallet successfully opened.")
 				gcd.wallet = wallet
 			}
 
@@ -71,12 +78,17 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 			db, err := NewBlockchain(cfg.dbPath)
 			if err != nil {
 				log.Printf("[GCD] Failed to create/load Wallet: %+v", err)
+				gcd.db = db
+				miner.db = db
 			} else {
 				log.Printf("[GCD] Database successfully opened.")
+				log.Printf("[GCD] Chain Tip: %v ", db.tip)
 				gcd.db = db
+				miner.db = db
 				// perform utxo reindexing task
 				UTXOSet := UTXOSet{
 					chain: gcd.db,
+					mutex: &sync.RWMutex{},
 				}
 				gcd.utxoSet = &UTXOSet
 				go func() {
@@ -91,18 +103,27 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 			}
 		}
 	}
+
+	if gcd.cfg.miningAddr != "" {
+		miner.miningAddress = gcd.cfg.miningAddr
+	}
+
+	gcd.miner = miner
+
 	if gcd.cfg.restPort != "" {
+		log.Printf("[GCD] Starting API Server.")
 		go gcd.BuildAndServeAPI()
-		sync.Add(1)
+		gcd.wg.Add(1)
+	}
+
+	if gcd.cfg.miningNode == true {
+		log.Printf("[GCD] Starting Mining Server.")
+		go gcd.miner.StartMiner()
+		gcd.wg.Add(1)
 	}
 
 	go gcd.StartServer()
-	sync.Add(1)
-
-	if gcd.cfg.miningNode == true {
-		go gcd.StartMiner()
-		sync.Add(1)
-	}
+	gcd.wg.Add(1)
 
 	if serverChan != nil {
 		serverChan <- gcd

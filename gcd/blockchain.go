@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/boltdb/bolt"
 )
@@ -20,8 +21,9 @@ const (
 // Arrays in Go are ordered by default,
 // which helps with some minor issues
 type Blockchain struct {
-	tip []byte
-	db  *bolt.DB
+	tip   []byte
+	db    *bolt.DB
+	mutex *sync.RWMutex
 }
 
 // fileExists is used to check if the database
@@ -36,6 +38,8 @@ func fileExists(path string) bool {
 
 // GetBestHeight returns the height of the latest block
 func (bc *Blockchain) GetBestHeight() int {
+	bc.mutex.RLock()
+	defer bc.mutex.RUnlock()
 	var block *Block
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
@@ -60,6 +64,8 @@ func (bc *Blockchain) GetBestHeight() int {
 
 // GetBlock finds a block by its hash and returns it
 func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
+	bc.mutex.RLock()
+	defer bc.mutex.RUnlock()
 	var block *Block
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
@@ -88,6 +94,8 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 
 // GetBlockHashes returns a list of hashes of all the blocks in the chain
 func (bc *Blockchain) GetBlockHashes() [][]byte {
+	bc.mutex.RLock()
+	defer bc.mutex.RUnlock()
 	var blocks [][]byte
 	bci := bc.Iterator()
 
@@ -108,6 +116,8 @@ func (bc *Blockchain) GetBlockHashes() [][]byte {
 // with the provided transactions. The parameter `transactions`
 // passed as a pointer to a slice of transactions
 func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
+	bc.mutex.Lock()
+	defer bc.mutex.Unlock()
 	var lastHash []byte
 	var lastHeight int
 	err := bc.db.View(func(tx *bolt.Tx) error {
@@ -125,6 +135,8 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	if err != nil {
 		log.Printf("Error getting last block")
 	}
+
+	log.Printf("[GCDB] Previous Height: %d Previous Hash: %v", lastHeight, lastHash)
 
 	newBlock := NewBlock([]byte(lastHash), transactions, lastHeight+1)
 
@@ -149,11 +161,16 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 
 		return nil
 	})
+
+	log.Printf("[GCDB] Update Tip: %d Latest Hash: %v", newBlock.Height, newBlock.Hash)
+
 	return newBlock
 }
 
 // AddBlock saves the block into the blockchain
 func (bc *Blockchain) AddBlock(block *Block) {
+	bc.mutex.Lock()
+	defer bc.mutex.Unlock()
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		blockInDb := b.Get(block.Hash)
@@ -194,6 +211,8 @@ func (bc *Blockchain) AddBlock(block *Block) {
 
 // AddGenesis saves the block into the blockchain
 func (bc *Blockchain) AddGenesis(block *Block) {
+	bc.mutex.Lock()
+	defer bc.mutex.Unlock()
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte(blocksBucket))
 		if err != nil {
@@ -225,6 +244,8 @@ func (bc *Blockchain) AddGenesis(block *Block) {
 // FindTransaction is used to get a Transaction by the given transaction hash
 // passed as the ID
 func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
+	bc.mutex.RLock()
+	defer bc.mutex.RUnlock()
 	bci := bc.Iterator()
 
 	for {
@@ -247,6 +268,8 @@ func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 // SignTransaction is used by the blockchain to sign the given transaction with the
 // given private key
 func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
+	bc.mutex.RLock()
+	defer bc.mutex.RUnlock()
 	prevTXs := make(map[string]Transaction)
 
 	for _, vin := range tx.Vin {
@@ -262,6 +285,8 @@ func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey)
 
 //VerifyTransaction is used to verify the given
 func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	bc.mutex.Lock()
+	defer bc.mutex.Unlock()
 	if tx.IsCoinbase() {
 		return true
 	}
@@ -284,13 +309,15 @@ func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
 // in a boltdb bucket
 type BlockchainIterator struct {
 	currentHash []byte
-	db          *bolt.DB
+	db          *Blockchain
 }
 
 //Iterator is the method used to create an iterator,
 // it will be linked to the blockchain tip
 func (bc *Blockchain) Iterator() *BlockchainIterator {
-	bci := &BlockchainIterator{bc.tip, bc.db}
+	bc.mutex.RLock()
+	defer bc.mutex.RUnlock()
+	bci := &BlockchainIterator{bc.tip, bc}
 
 	return bci
 }
@@ -298,9 +325,11 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 // Next is the method used to get the next block
 // while iterating the blockchain
 func (i *BlockchainIterator) Next() *Block {
+	i.db.mutex.RLock()
+	defer i.db.mutex.RUnlock()
 	var block *Block
 
-	err := i.db.View(func(tx *bolt.Tx) error {
+	err := i.db.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		encodedBlock := b.Get(i.currentHash)
 		nblock, err := DeserializeBlock(encodedBlock)
@@ -323,6 +352,8 @@ func (i *BlockchainIterator) Next() *Block {
 
 // FindUTXO finds and returns all unspent transaction outputs
 func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
+	bc.mutex.RLock()
+	defer bc.mutex.RUnlock()
 	UTXO := make(map[string]TXOutputs)
 	spentTXOs := make(map[string][]int)
 	bci := bc.Iterator()
@@ -417,8 +448,9 @@ func CreateBlockchain(address string) (Blockchain, error) {
 	}
 
 	bc := Blockchain{
-		tip: tip,
-		db:  db,
+		tip:   tip,
+		db:    db,
+		mutex: &sync.RWMutex{},
 	}
 
 	return bc, nil
@@ -430,7 +462,6 @@ func CreateBlockchain(address string) (Blockchain, error) {
 // else generates the genesis block and
 // sets it as the tip
 func NewBlockchain(path string) (*Blockchain, error) {
-
 	if fileExists(path) == false {
 		return nil, fmt.Errorf(noExistingBlockchainFound)
 	}
@@ -452,8 +483,9 @@ func NewBlockchain(path string) (*Blockchain, error) {
 	}
 
 	bc := Blockchain{
-		tip: tip,
-		db:  db,
+		tip:   tip,
+		db:    db,
+		mutex: &sync.RWMutex{},
 	}
 
 	return &bc, nil
