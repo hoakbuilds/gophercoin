@@ -136,7 +136,7 @@ func (s *MinerServer) StartMiner() {
 			}
 
 		case msg := <-s.timeChan:
-			if msg > 4 && s.miningTxs {
+			if msg > 2 && s.miningTxs {
 				t := time.Now().Unix()
 				s.mineTxs()
 				now := time.Now().Unix()
@@ -233,8 +233,9 @@ func (s *MinerServer) timeAdjustment() {
 
 			now := time.Now().Unix()
 			diff := (now - block.Timestamp) / 60
-			log.Printf("[GCMNR] Elapsed since last block: %v minutes.", diff)
-			if diff > 4 && !s.miningTxs {
+
+			if diff > 2 && !s.miningTxs {
+				log.Printf("[GCMNR] Elapsed since last block: %v minutes.", diff)
 				s.miningTxs = true
 				s.timeChan <- diff
 			}
@@ -242,7 +243,7 @@ func (s *MinerServer) timeAdjustment() {
 		}
 	}
 
-	time.Sleep(60000000000)
+	time.Sleep(1000000000)
 	go s.timeAdjustment()
 	s.server.wg.Add(1)
 
