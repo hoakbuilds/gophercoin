@@ -7,7 +7,7 @@ var (
 )
 
 const (
-	targetBits          = 24
+	targetBits          = 16
 	blocksBucket        = "blockchain"
 	utxoBucket          = "utxo"
 	bucketExtension     = ".db"

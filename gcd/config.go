@@ -17,6 +17,7 @@ type Config struct {
 	restPort string
 
 	miningNode bool
+	miningAddr string
 }
 
 func loadConfig() Config {
@@ -27,6 +28,7 @@ func loadConfig() Config {
 		peervar   string
 		restvar   string
 		miningvar string
+		addrvar   string
 	)
 
 	flag.StringVar(&walletvar, "wallet", "", "Path to the wallet.dat file.")
@@ -34,6 +36,7 @@ func loadConfig() Config {
 	flag.StringVar(&peervar, "listen", "", "Port for the daemon to use to listen for peer connections")
 	flag.StringVar(&restvar, "rest", "", "Port to use for the REST API server.")
 	flag.StringVar(&miningvar, "mining", "", "Set to `true` to mine, `false` not to.")
+	flag.StringVar(&miningvar, "addr", "", "Address used for mining reward.")
 
 	flag.Parse()
 	if len(os.Args) == 0 {
@@ -47,6 +50,7 @@ func loadConfig() Config {
 			peerPort:   peervar,
 			restPort:   restvar,
 			miningNode: true,
+			miningAddr: addrvar,
 		}
 	}
 
@@ -56,5 +60,6 @@ func loadConfig() Config {
 		peerPort:   peervar,
 		restPort:   restvar,
 		miningNode: false,
+		miningAddr: addrvar,
 	}
 }

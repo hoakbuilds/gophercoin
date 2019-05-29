@@ -38,8 +38,10 @@ func gcdMain(serverChan chan<- *Server, cfg Config) error {
 		wg:              &sync,
 		cfg:             cfg,
 		quitChan:        make(chan int),
-		minerChan:       make(chan interface{}),
+		minerChan:       make(chan []byte, 5),
+		timeChan:        make(chan float64, 5),
 		nodeServChan:    make(chan interface{}),
+		miningTxs:       false,
 	}
 
 	// In case a config structure was able to be built from flags
