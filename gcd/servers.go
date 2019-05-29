@@ -24,6 +24,18 @@ const (
 	commandLength       = 12
 )
 
+// MinerServer is the structure which defines the
+// mining server
+type MinerServer struct {
+	db            *Blockchain
+	server        *Server
+	quitChan      chan int
+	minerChan     chan []byte
+	timeChan      chan int64
+	miningAddress string
+	miningTxs     bool
+}
+
 // Server is the structure which defines the Gophercoin
 // Daemon
 type Server struct {
@@ -32,20 +44,16 @@ type Server struct {
 	wallet  *Wallet
 	utxoSet *UTXOSet
 
+	miner  *MinerServer
 	Router *mux.Router
 
 	knownNodes      []Peer
 	nodeAddress     string
 	blocksInTransit [][]byte
 	memPool         map[string]Transaction
-	miningAddress   string
-	miningTxs       bool
 
 	wg *sync.WaitGroup
 
-	quitChan     chan int
-	minerChan    chan []byte
-	timeChan     chan float64
 	nodeServChan chan interface{}
 }
 
@@ -56,7 +64,7 @@ func (s *Server) StartServer() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		log.Printf("[GCD] Catching signal, terminating gracefully.")
+		log.Printf("[PRSRV] Catching signal, terminating gracefully.")
 		if s.wallet != nil {
 			s.wallet.SaveToFile()
 		}
@@ -83,11 +91,11 @@ func (s *Server) StartServer() {
 		lis = lst
 	}
 
-	log.Printf("[GCD] PeerServer listening on port %s", s.nodeAddress)
+	log.Printf("[PRSRV] PeerServer listening on: %s", s.nodeAddress)
 
 	if len(s.knownNodes) > 0 {
 		if s.nodeAddress != s.knownNodes[0].Address {
-			log.Printf("[PRSV] sending version message to %s\n", s.knownNodes[0].Address)
+			log.Printf("[PRSRV] sending version message to %s\n", s.knownNodes[0].Address)
 			s.sendVersion(s.knownNodes[0].Address)
 		}
 	}
@@ -104,11 +112,11 @@ func (s *Server) StartServer() {
 }
 
 // StartMiner is the function used to start the gcd Server
-func (s *Server) StartMiner() {
-	defer s.wg.Done()
+func (s *MinerServer) StartMiner() {
+	defer s.server.wg.Done()
 	log.Printf("[GCMNR] Miner ready")
 	go s.timeAdjustment()
-	s.wg.Add(1)
+	s.server.wg.Add(1)
 	for {
 		select {
 		case <-s.quitChan:
@@ -117,26 +125,24 @@ func (s *Server) StartMiner() {
 		case msg := <-s.minerChan:
 			log.Printf("[GCMNR] Received tx with ID %v", msg)
 
-			if len(s.memPool) > 2 {
-				t := time.Now()
+			if len(s.server.memPool) > 2 && !s.miningTxs {
 				s.miningTxs = true
+				t := time.Now().Unix()
 				s.mineTxs()
+				now := time.Now().Unix()
+				diff := (t - now)
+				log.Printf("[GCMNR] Mined new block after %v seconds.", diff)
 				s.miningTxs = false
-				now := time.Now()
-				diff := now.Sub(t)
-				log.Printf("[GCMNR] Mined new block after %v.", diff.Minutes())
 			}
 
 		case msg := <-s.timeChan:
-			if msg > float64(2) && !s.miningTxs {
-				t := time.Now()
-				log.Printf("[GCMNR] %v minutes since last block, mining new.", msg)
-				s.miningTxs = true
+			if msg > 4 && s.miningTxs {
+				t := time.Now().Unix()
 				s.mineTxs()
+				now := time.Now().Unix()
+				diff := (t - now)
+				log.Printf("[GCMNR] Mined new block after %v seconds.", diff)
 				s.miningTxs = false
-				now := time.Now()
-				diff := now.Sub(t)
-				log.Printf("[GCMNR] Mined new block after %v.", diff.Minutes())
 			}
 
 		}
@@ -148,26 +154,25 @@ func (s *Server) StartMiner() {
 func getExternalAddress() string {
 	resp, err := http.Get("http://myexternalip.com/raw")
 	if err != nil {
-		log.Printf("[PRSV] Unable to fetch external ip address.")
+		log.Printf("[PRSRV] Unable to fetch external ip address.")
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
 	r, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("[PRSV] Unable to read external ip address response.")
+		log.Printf("[PRSRV] Unable to read external ip address response.")
 		os.Exit(1)
 	}
 
 	return string(r)
 }
 
-func (s *Server) mineTxs() {
-
+func (s *MinerServer) mineTxs() {
 	var txs []*Transaction
-	for id := range s.memPool {
-		tx := s.memPool[id]
+	for id := range s.server.memPool {
+		tx := s.server.memPool[id]
 		log.Printf("[GCMNR] Verifying transaction: %s\n", id)
-		if s.db.VerifyTransaction(&tx) {
+		if s.server.db.VerifyTransaction(&tx) {
 			log.Printf("[GCMNR] Verified transaction: %s\n", id)
 			txs = append(txs, &tx)
 		}
@@ -178,76 +183,69 @@ func (s *Server) mineTxs() {
 	}
 	var cbTx *Transaction
 	if s.miningAddress == "" {
-		s.miningAddress = s.wallet.CreateAddress()
-
+		log.Println("[GCMNR] No mining address from config structure")
+		s.miningAddress = s.server.wallet.CreateAddress()
+		log.Printf("[GCMNR] New mining address: %v", s.miningAddress)
 		cbTx = NewCoinbaseTX(s.miningAddress, "")
 	} else {
 		cbTx = NewCoinbaseTX(s.miningAddress, "")
 	}
 	txs = append(txs, cbTx)
-
-	newBlock := s.db.MineBlock(txs)
-	s.utxoSet.Reindex()
-
+	log.Printf("[GCMNR] Block transactions aggregated: \n%v", txs)
+	newBlock := s.server.db.MineBlock(txs)
 	log.Println("[GCMNR] New block is mined!")
+
+	go func() {
+		log.Printf("[GCDB] Reindexing UTXO Set.")
+
+		s.server.utxoSet.Reindex()
+		ctx := s.server.utxoSet.CountTransactions()
+		log.Printf("[GCDB] Finished reindexing UTXO Set, there are %d transactions in it.", ctx)
+
+	}()
+
+	log.Println("[GCMNR] Reindexing UTXO Set.")
 
 	for _, tx := range txs {
 		txID := hex.EncodeToString(tx.ID)
-		delete(s.memPool, txID)
+		delete(s.server.memPool, txID)
 	}
 
-	for _, node := range s.knownNodes {
-		if node.Address != s.nodeAddress {
-			s.sendInv(node.Address, "block", [][]byte{newBlock.Hash})
+	for _, node := range s.server.knownNodes {
+		if node.Address != s.server.nodeAddress {
+			s.server.sendInv(node.Address, "block", [][]byte{newBlock.Hash})
 		}
 	}
 }
 
-func (s *Server) timeAdjustment() {
-	defer s.wg.Done()
+func (s *MinerServer) timeAdjustment() {
+	defer s.server.wg.Done()
 
-	for {
-		if !s.miningTxs {
-			if s.db != nil {
-				tip := s.db.tip
-				block, err := s.db.GetBlock(tip)
-				if err != nil {
-					log.Printf("[GCMNR] Unable to fetch blockchain tip.")
-					os.Exit(1)
-				}
-				ts := time.Unix(0, block.Timestamp)
-				now := time.Now()
-				diff := now.Sub(ts)
-				log.Printf("[GCMNR] Elapsed since last block %v.", diff.Minutes())
-				if diff.Minutes() > float64(1) && !s.miningTxs {
-					log.Printf("[GCMNR] Miner ping %v.", diff.Minutes())
-					s.timeChan <- diff.Minutes()
-					time.Sleep(600)
-				} else {
-					time.Sleep(600)
-				}
+	if !s.miningTxs {
+		if s.server.db != nil {
+			tip := s.server.db.tip
+			block, err := s.server.db.GetBlock(tip)
+
+			if err != nil {
+				log.Printf("[GCMNR] Unable to fetch blockchain tip.")
+				os.Exit(1)
 			}
+
+			now := time.Now().Unix()
+			diff := (now - block.Timestamp) / 60
+			log.Printf("[GCMNR] Elapsed since last block: %v minutes.", diff)
+			if diff > 4 && !s.miningTxs {
+				s.miningTxs = true
+				s.timeChan <- diff
+			}
+
 		}
-
 	}
 
-}
+	time.Sleep(60000000000)
+	go s.timeAdjustment()
+	s.server.wg.Add(1)
 
-func (s *Server) timeSinceLastBlock() float64 {
-	tip := s.db.tip
-	block, err := s.db.GetBlock(tip)
-	if err != nil {
-		log.Printf("[GCMNR] Unable to fetch blockchain tip.")
-		os.Exit(1)
-	}
-
-	t := time.Unix(0, block.Timestamp)
-	elapsed := time.Since(t)
-	if err != nil {
-		log.Printf("[GCMNR] Elapsed since last block %v.", elapsed.Seconds())
-		os.Exit(1)
-	}
-
-	return elapsed.Seconds()
+	return
 
 }

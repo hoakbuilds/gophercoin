@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"sync"
 )
 
 // Peer is the structure that defines a peer
@@ -175,7 +176,7 @@ func (s *Server) sendVersion(addr string) {
 	if s.db != nil {
 		bestHeight = s.db.GetBestHeight()
 	} else {
-		bestHeight = 0
+		bestHeight = -1
 	}
 	log.Printf("[PRSRV] Best height: %d \n", bestHeight)
 	version := Version{nodeVersion, bestHeight, s.nodeAddress}
@@ -255,7 +256,7 @@ func (s *Server) handleBlock(request []byte) {
 
 		s.blocksInTransit = s.blocksInTransit[1:]
 	} else {
-		UTXOSet := UTXOSet{s.db}
+		UTXOSet := UTXOSet{s.db, &sync.RWMutex{}}
 		UTXOSet.Reindex()
 	}
 }
@@ -359,7 +360,7 @@ func (s *Server) handleTx(request []byte) {
 	tx := DeserializeTransaction(txData)
 	s.memPool[hex.EncodeToString(tx.ID)] = tx
 
-	s.minerChan <- txData
+	s.miner.minerChan <- txData
 
 	if len(s.knownNodes) > 0 {
 		for _, node := range s.knownNodes {
@@ -395,9 +396,11 @@ func (s *Server) handleVersion(request []byte) {
 	}
 	var myBestHeight int
 	if s.db != nil {
+		log.Printf("[PRSRV] Getting best block height from db.")
 		myBestHeight = s.db.GetBestHeight()
 	} else {
-		myBestHeight = 0
+		log.Printf("[PRSRV] Database not found, best height is 0.")
+		myBestHeight = -1
 	}
 	foreignerBestHeight := payload.BestHeight
 

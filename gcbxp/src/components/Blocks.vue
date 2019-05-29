@@ -5,12 +5,14 @@
       <table class="w3-table w3-bordered w3-centered w3-striped">
         <tr>
           <th>Timestamp</th>
+          <th>Nonce</th>
           <th>Height</th>
           <th>Hash</th>
           <th>Transactions</th>
         </tr>
         <tr v-for="block in blocks" v-bind:key="block.height">
           <td>{{block.Timestamp | formatDate }}</td>
+          <td>{{block.Nonce}}</td>
           <td>{{block.Height}}</td>
           <td>{{block.Hash}}</td>
           <td>{{block.TXcount}}</td>

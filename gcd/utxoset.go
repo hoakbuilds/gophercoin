@@ -3,6 +3,7 @@ package gcd
 import (
 	"encoding/hex"
 	"log"
+	"sync"
 
 	"github.com/boltdb/bolt"
 )
@@ -11,10 +12,13 @@ import (
 // A Set comprised of all the unspent transaction outputs
 type UTXOSet struct {
 	chain *Blockchain
+	mutex *sync.RWMutex
 }
 
 // FindSpendableOutputs finds and returns unspent outputs to reference in inputs
 func (u *UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[string][]int) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
 	unspentOutputs := make(map[string][]int)
 	accumulated := 0
 	db := u.chain.db
@@ -46,6 +50,8 @@ func (u *UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[
 
 // FindUTXO finds UTXO for a public key hash
 func (u *UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
 	db := u.chain.db
 	var UTXOs []TXOutput
 
@@ -74,6 +80,8 @@ func (u *UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 
 // CountTransactions returns the number of transactions in the UTXO set
 func (u *UTXOSet) CountTransactions() int {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
 	db := u.chain.db
 	counter := 0
 
@@ -96,6 +104,8 @@ func (u *UTXOSet) CountTransactions() int {
 
 // Reindex rebuilds the UTXO set
 func (u *UTXOSet) Reindex() {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
 	db := u.chain.db
 	bucketName := []byte(utxoBucket)
 
@@ -140,6 +150,8 @@ func (u *UTXOSet) Reindex() {
 // Update updates the UTXO set with transactions from the Block
 // The Block is considered to be the tip of a chain
 func (u *UTXOSet) Update(block *Block) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
 	db := u.chain.db
 	err := db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
