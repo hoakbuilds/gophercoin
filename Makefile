@@ -2,12 +2,9 @@ PKG := github.com/murlokito/gophercoin
 
 GOBUILD := go build
 GOINSTALL := GO111MODULE=on go install -v
-MKDIRBUiLD := mkdir bin
 
-GCRPRCPROTO := protoc -I gcd/gcrpc/ \
-				-I${GOPATH}/src \
-				--go_out=plugins=grpc:gcd/gcrpc/ \
-				gcd/gcrpc/api.proto
+MKDIRBIN := mkdir bin
+CHECKDIRBIN := bin/
 
 # ============
 # INSTALLATION
@@ -17,23 +14,22 @@ genproto:
 	@$(call print, "Generating proto files.")
 	$(GCRPRCPROTO)
 
-build:
-	$(MKDIRBUiLD)
-	@$(call print, "Building debug gophercoin and glcli.")
-	$(GOBUILD) -o bin/gcd $(PKG)/cmd/gcd
-	$(GOBUILD) -o bin/gccli $(PKG)/cmd/gccli
+build: | $(CHECKDIRBIN)
+	@$(call print, "Building debug gophercoin.")
+	$(GOBUILD) -o bin/gophercoind $(PKG)/cmd/gophercoind
 
-install: 
-	@$(call print, "Installing gophercoin daemon (gcd) and gophercoin cli (gccli).")
-	$(GOINSTALL) $(PKG)/cmd/gcd
-	$(GOINSTALL) $(PKG)/cmd/gccli
+install:
+	@$(call print, "Installing gophercoin daemon.")
+	$(GOINSTALL) $(PKG)/cmd/gophercoind
 
 all:
 	@$(call print, "Generating proto files.")
-	$(GCRPRCPROTO)
-	@$(call print, "Installing gophercoin daemon (gcd) and gophercoin cli (gccli).")
-	$(GOINSTALL) $(PKG)/cmd/gcd
-	$(GOINSTALL) $(PKG)/cmd/gccli
+	@$(call print, "Installing gophercoin daemon.")
+	$(GOINSTALL) $(PKG)/cmd/gophercoind
+
+$(CHECKDIRBIN):
+	@$(call print, "Folder $(CHECKDIRBIN) does not exist.")
+	$(MKDIRBIN)
 
 clear:
 	rm go.*
